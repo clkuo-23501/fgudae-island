@@ -75,6 +75,28 @@
   <!-- 3D 空間投影名牌 -->
   <div id="labels-layer" class="fixed inset-0 pointer-events-none z-10 overflow-hidden"></div>
 
+  <!-- 底部五島快捷導覽列 -->
+  <nav id="bottom-nav-bar" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 max-w-[95vw] bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-lg rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar"></nav>
+
+  <!-- 島嶼詳情側邊／底部抽屜 -->
+  <aside id="island-drawer" class="fixed inset-x-0 bottom-0 md:inset-y-0 md:left-auto md:right-0 md:w-[430px] max-h-[84vh] md:max-h-full z-30 glass-drawer border-t md:border-t-0 md:border-l border-slate-200 rounded-t-3xl md:rounded-none flex flex-col transform translate-y-full md:translate-x-full transition-transform duration-300">
+    <div class="p-4 sm:p-5 border-b border-slate-200/80 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <canvas id="mini-island-canvas" width="128" height="128" class="w-12 h-12 rounded-2xl border border-slate-200 flex-shrink-0 bg-[#2b7a9b]"></canvas>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span id="drawer-stage-badge" class="text-[11px] font-black px-2 py-0.5 rounded-full bg-[#e4f0f7] text-[#2b5b78]">第一站</span>
+            <span id="drawer-lock-badge" class="hidden text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-800 text-amber-300">🔒 在校生限定</span>
+          </div>
+          <h2 id="drawer-title" class="text-base sm:text-lg font-black text-slate-800 truncate mt-0.5">🏝️ 島嶼名稱</h2>
+          <p id="drawer-subtitle" class="text-[11px] text-slate-500 truncate">副標題</p>
+        </div>
+      </div>
+      <button id="btn-close-drawer" type="button" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black flex-shrink-0 transition">✕</button>
+    </div>
+    <div id="drawer-body" class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1"></div>
+  </aside>
+
   <!-- 頂部 HUD 列 -->
   <header class="fixed top-0 left-0 right-0 z-20 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
     <div class="pointer-events-auto flex flex-wrap items-center gap-2">
@@ -123,51 +145,51 @@
     </div>
   </header>
 
-  <!-- 操作提示 -->
-  <div class="fixed top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-    <div class="bg-slate-800/75 backdrop-blur-md text-white text-[11px] sm:text-xs font-medium px-3.5 py-1.5 rounded-full shadow-sm whitespace-nowrap">
-      拖曳旋轉・縮放瀏覽・點擊五座島嶼開啟功能模組或前往獨立專頁
-    </div>
-  </div>
-
-  <!-- 底部五座島嶼快速導覽列 -->
-  <nav aria-label="島嶼快速導覽" class="fixed bottom-3 left-0 right-0 z-20 px-3 pointer-events-none">
-    <div class="max-w-3xl mx-auto pointer-events-auto">
-      <div id="bottom-nav-bar" class="bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-lg rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar"></div>
-    </div>
-  </nav>
-
-  <!-- 島嶼內容抽屜面板 -->
-  <aside id="island-drawer" aria-hidden="true"
-    class="fixed z-30 inset-x-0 bottom-0 md:inset-y-0 md:left-auto md:right-0 w-full md:w-[460px] max-h-[84vh] md:max-h-full rounded-t-3xl md:rounded-none md:rounded-l-3xl glass-drawer border-t md:border-t-0 md:border-l border-slate-200/90 flex flex-col transform translate-y-full md:translate-y-0 md:translate-x-full transition-transform duration-300 ease-out">
-
-    <div class="md:hidden w-full flex justify-center pt-2.5 pb-1">
-      <div class="w-12 h-1.5 rounded-full bg-slate-300"></div>
-    </div>
-
-    <div class="px-5 pt-3 pb-4 border-b border-slate-200/80 flex items-start justify-between gap-3">
-      <div class="flex items-center gap-3.5 min-w-0">
-        <div class="w-16 h-16 rounded-2xl bg-[#e4f0f7] border border-[#c8dce8] flex-shrink-0 overflow-hidden shadow-inner">
-          <canvas id="mini-island-canvas" width="128" height="128" class="w-full h-full block"></canvas>
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5 mb-1">
-            <span id="drawer-stage-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#e4f0f7] text-[#2b5b78]">入學入口</span>
-            <span id="drawer-lock-badge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">🔒 在校生專屬</span>
+      <!-- 歡迎來到【新手村】訪客乘船登島歡迎詞彈窗 -->
+      <div id="village-welcome-modal" class="hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-[#fcfaf5] rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border-2 border-[#cce3d0] space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3d7a47] to-[#2b7a9b] flex items-center justify-center text-2xl shadow-sm">⛵</div>
+              <div>
+                <span class="text-[11px] font-black px-2 py-0.5 rounded-full bg-[#dceee0] text-[#285932]">訪客啟航抵達</span>
+                <h2 class="text-xl font-black text-slate-800 mt-0.5">歡迎來到【新手村】！</h2>
+              </div>
+            </div>
+            <button type="button" onclick="closeVillageWelcomeModal(false)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold">✕</button>
           </div>
-          <h2 id="drawer-title" class="text-xl font-black text-slate-800 truncate">登島傳送門</h2>
-          <p id="drawer-subtitle" class="text-xs text-slate-500 font-medium line-clamp-2 mt-0.5">招生重要日程與入學攻略時程</p>
+
+          <div class="bg-[#eff7f1] border border-[#dceee0] rounded-2xl p-4 text-xs sm:text-sm text-slate-700 leading-relaxed space-y-2.5">
+            <p class="font-bold text-slate-800">剛踏入這座學習島嶼的冒險者，對大學生活還充滿好奇與未知嗎？</p>
+            <p>在正式前往「揪團練功」與「百岳修煉島」挑戰之前，先來村子裡坐坐吧！這裡收藏了學長姐們走過的真實足跡——無論是飛往海外的跨海遠征記、課堂與專題的技能樹養成、熱血沸騰的公會大冒險，還是搶先踏入企業的前哨戰紀錄，都是最真實的過來人經驗談。</p>
+            <p class="font-bold text-[#285932]">點選下方感興趣的冒險標籤，看看未來的你，可以在這裡解鎖哪些精彩劇情！</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="enterVillageWithTag('跨海遠征記')" class="p-2.5 rounded-xl bg-white hover:bg-[#eff7f1] border border-slate-200 hover:border-[#3d7a47] text-left transition">
+              <div class="text-xs font-black text-[#3d7a47]">✈️ #跨海遠征記</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">海外姐妹校交換故事</div>
+            </button>
+            <button type="button" onclick="enterVillageWithTag('技能樹養成')" class="p-2.5 rounded-xl bg-white hover:bg-[#eff7f1] border border-slate-200 hover:border-[#3d7a47] text-left transition">
+              <div class="text-xs font-black text-[#3d7a47]">📊 #技能樹養成</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">經濟模型與數據實作</div>
+            </button>
+            <button type="button" onclick="enterVillageWithTag('公會大冒險')" class="p-2.5 rounded-xl bg-white hover:bg-[#eff7f1] border border-slate-200 hover:border-[#3d7a47] text-left transition">
+              <div class="text-xs font-black text-[#3d7a47]">🚩 #公會大冒險</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">經濟營隊與社團籌辦</div>
+            </button>
+            <button type="button" onclick="enterVillageWithTag('前哨戰紀錄')" class="p-2.5 rounded-xl bg-white hover:bg-[#eff7f1] border border-slate-200 hover:border-[#3d7a47] text-left transition">
+              <div class="text-xs font-black text-[#3d7a47]">🏢 #前哨戰紀錄</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">暑期金控與企業實習</div>
+            </button>
+          </div>
+
+          <button type="button" onclick="enterVillageWithTag('全部')"
+            class="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-[#3d7a47] to-[#2b7a9b] hover:opacity-95 text-white font-black text-sm shadow-md transition">
+            踏入冒險新手村探索 ➔
+          </button>
         </div>
       </div>
-
-      <button id="btn-close-drawer" type="button" aria-label="關閉面板"
-        class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center flex-shrink-0 transition">
-        ✕
-      </button>
-    </div>
-
-    <div id="drawer-body" class="p-5 overflow-y-auto flex-1 space-y-4 text-slate-700"></div>
-  </aside>
 
   <!-- 身分選擇與學號驗證彈窗 -->
   <div id="role-modal" class="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300">
@@ -529,6 +551,14 @@
     let sunLight, ambientLight, waterMesh, waterBasePos, smokeParticles = [], clouds = [], magpies = [], bridges = [], students = [], shoreWaves = [], rainSystem;
     let islandGroups = {}, clickableMeshes = [], windowMats = [];
     let cameraAnim = { active: false, targetPos: new THREE.Vector3(), targetLook: new THREE.Vector3() };
+    let visitorBoat = null;
+    let boatVoyage = {
+      active: false,
+      progress: 0,
+      duration: 9.5,
+      startPos: new THREE.Vector3(61, 0, -2),
+      endPos: new THREE.Vector3(23.2, 0, -13)
+    };
     const DEFAULT_CAM_POS = new THREE.Vector3(0, 29, 44);
     const DEFAULT_LOOK_AT = new THREE.Vector3(2, 1, 0);
 
@@ -769,6 +799,78 @@
       stu.add(leftLeg, rightLeg, lowerBody, torso, leftArm, rightArm, headGroup);
       return { group: stu, leftLeg, rightLeg, leftArm, rightArm };
     }
+
+    function makeVisitorBoat() {
+      const boat = new THREE.Group();
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.72 });
+      const trimMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 });
+      const sailMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.5, side: THREE.DoubleSide });
+
+      const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.55, 0.75, 12), hullMat);
+      hull.scale.set(0.85, 1, 2.2);
+      hull.position.y = 0.15;
+
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.08, 8, 20), trimMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.scale.set(0.85, 2.2, 1);
+      rim.position.y = 0.52;
+
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 2.5, 8), trimMat);
+      mast.position.set(0, 1.45, 0.15);
+
+      const sail = new THREE.Mesh(new THREE.ConeGeometry(1.05, 1.9, 3), sailMat);
+      sail.position.set(0, 1.65, -0.15);
+      sail.rotation.y = Math.PI * 0.5;
+      sail.scale.set(0.3, 1, 1.1);
+
+      const flag = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.35, 0.65),
+        new THREE.MeshStandardMaterial({ color: 0x3d7a47 })
+      );
+      flag.position.set(0, 2.55, -0.15);
+
+      const adventurer = makeStudentCharacter(0x2b7a9b, false, 0x1e293b);
+      adventurer.group.scale.setScalar(0.88);
+      adventurer.group.position.set(0, 0.35, 0.55);
+
+      const wakeRing = new THREE.Mesh(
+        new THREE.RingGeometry(1.15, 1.55, 24),
+        new THREE.MeshBasicMaterial({ color: 0xf0f9ff, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
+      );
+      wakeRing.rotation.x = -Math.PI / 2;
+      wakeRing.scale.set(0.85, 1.85, 1);
+      wakeRing.position.y = -0.12;
+
+      boat.add(hull, rim, mast, sail, flag, adventurer.group, wakeRing);
+      return boat;
+    }
+
+    function startVisitorBoatVoyage() {
+      if (state.reduceMotion || !visitorBoat || !camera) {
+        state.villageFilter = '全部';
+        focusOnIsland('village');
+        document.getElementById('village-welcome-modal')?.classList.remove('hidden');
+        return;
+      }
+      visitorBoat.visible = true;
+      visitorBoat.position.copy(boatVoyage.startPos);
+      boatVoyage.progress = 0;
+      boatVoyage.active = true;
+      cameraAnim.active = false;
+    }
+
+    window.closeVillageWelcomeModal = (openDrawer = false) => {
+      document.getElementById('village-welcome-modal')?.classList.add('hidden');
+      if (openDrawer) {
+        focusOnIsland('village');
+      }
+    };
+
+    window.enterVillageWithTag = (tag) => {
+      state.villageFilter = tag || '全部';
+      document.getElementById('village-welcome-modal')?.classList.add('hidden');
+      focusOnIsland('village');
+    };
 
     function initThreeScene() {
       const container = document.getElementById('canvas-container');
@@ -1133,6 +1235,10 @@
       rainSystem.visible = false;
       scene.add(rainSystem);
 
+      visitorBoat = makeVisitorBoat();
+      visitorBoat.visible = false;
+      scene.add(visitorBoat);
+
       // 點擊射線偵測
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
@@ -1321,7 +1427,44 @@
         rainSystem.geometry.attributes.position.needsUpdate = true;
       }
 
-      if (cameraAnim.active) {
+      if (boatVoyage.active && visitorBoat && camera) {
+        boatVoyage.progress = Math.min(1, boatVoyage.progress + dt / boatVoyage.duration);
+        // 前段平穩啟航、後段緩緩減速靠岸
+        const p = boatVoyage.progress;
+        const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        const curPos = new THREE.Vector3().lerpVectors(boatVoyage.startPos, boatVoyage.endPos, ease);
+        curPos.z -= Math.sin(ease * Math.PI) * 3.2;
+        curPos.y = Math.sin(t * 3.8) * 0.12;
+        visitorBoat.position.copy(curPos);
+
+        const nextEase = Math.min(1, ease + 0.012);
+        const nextPos = new THREE.Vector3().lerpVectors(boatVoyage.startPos, boatVoyage.endPos, nextEase);
+        nextPos.z -= Math.sin(nextEase * Math.PI) * 3.2;
+        visitorBoat.rotation.y = Math.atan2(nextPos.x - curPos.x, nextPos.z - curPos.z);
+        visitorBoat.rotation.z = Math.sin(t * 3.5) * 0.045;
+
+        // 龜山島的龜頭朝 +Z、龜尾朝 -Z，從西側海域（x 較小處）往東看 (+X) 才能看清楚完整的神龜側面輪廓！
+        // 前 35% 航程讓鏡頭在西側海面回望龜山島完整側面與啟航小船，之後平滑轉向前方的新手村碼頭
+        const viewShift = Math.min(1, Math.max(0, (p - 0.25) / 0.55));
+        const smoothShift = viewShift * viewShift * (3 - 2 * viewShift);
+
+        const camStart = new THREE.Vector3(curPos.x - 18, 12.5, curPos.z + 10);
+        const camEnd = new THREE.Vector3(curPos.x + 14, 15.5, curPos.z - 15);
+        const desiredCam = new THREE.Vector3().lerpVectors(camStart, camEnd, smoothShift);
+        camera.position.lerp(desiredCam, 0.075);
+
+        const lookAtGuishan = new THREE.Vector3(68, 2.5, 0);
+        const lookAtVillage = new THREE.Vector3(18, 1.4, -13);
+        const desiredLook = new THREE.Vector3().lerpVectors(lookAtGuishan, lookAtVillage, smoothShift);
+        if (controls) controls.target.lerp(desiredLook, 0.085);
+
+        if (boatVoyage.progress >= 1) {
+          boatVoyage.active = false;
+          state.villageFilter = '全部';
+          focusOnIsland('village');
+          document.getElementById('village-welcome-modal')?.classList.remove('hidden');
+        }
+      } else if (cameraAnim.active) {
         camera.position.lerp(cameraAnim.targetPos, 0.08);
         if (controls) controls.target.lerp(cameraAnim.targetLook, 0.08);
         if (camera.position.distanceTo(cameraAnim.targetPos) < 0.25) cameraAnim.active = false;
@@ -2184,7 +2327,11 @@
           document.getElementById('role-modal')?.classList.add('hidden');
           updateHudRoleBadge();
           renderLabelsAndNav();
-          if (state.selectedIslandId) openIslandDrawer(state.selectedIslandId);
+          if (state.role === 'visitor') {
+            startVisitorBoatVoyage();
+          } else if (state.selectedIslandId) {
+            openIslandDrawer(state.selectedIslandId);
+          }
         };
       }
     }
