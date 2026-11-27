@@ -8,7 +8,7 @@
   <script src="auth.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Noto Sans TC', sans-serif; background-color: #fcfaf5; color: #1e293b; }
+    body { font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #fcfaf5; color: #1e293b; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -27,7 +27,7 @@
 
       <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5">
         <span id="subpage-role-badge" class="text-xs font-bold text-slate-700">載入身分中...</span>
-        <button type="button" id="btn-quick-auth" class="px-2.5 py-1 rounded-lg bg-[#2b5b78] text-white text-xs font-bold">
+        <button type="button" id="btn-quick-auth" class="px-2.5 py-1 rounded-lg bg-[#2b5b78] hover:bg-[#20465c] text-white text-xs font-bold transition">
           切換身分
         </button>
       </div>
@@ -38,22 +38,113 @@
     <!-- 試算表權限區塊（訪客不可點按開啟） -->
     <section id="sheet-access-banner" class="rounded-2xl p-4 border"></section>
 
-    <!-- 讀書會與筆記範例區塊 -->
-    <section class="bg-white rounded-3xl border border-slate-200 p-5 space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="text-base font-black text-slate-800">🔥 開放招募中的證照讀書會</h2>
-        <span id="permission-tag" class="text-xs font-bold px-2.5 py-1 rounded-full"></span>
-      </div>
-      <div id="team-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-    </section>
+    <!-- 分頁切換：共學組隊 / 歷屆筆記 -->
+    <div class="grid grid-cols-2 gap-2 bg-slate-200/70 p-1.5 rounded-2xl max-w-md">
+      <button type="button" id="tab-team" onclick="switchSubTab('team')"
+        class="py-2 rounded-xl text-xs font-black bg-white text-[#b5653b] shadow-sm transition">
+        🤝 共學組隊
+      </button>
+      <button type="button" id="tab-notes" onclick="switchSubTab('notes')"
+        class="py-2 rounded-xl text-xs font-black text-slate-600 transition">
+        📚 歷屆筆記
+      </button>
+    </div>
+
+    <!-- 分頁一：共學組隊 -->
+    <div id="panel-team" class="space-y-5">
+      <!-- 在校生發起新讀書會表單 -->
+      <section id="create-team-section" class="hidden bg-white rounded-3xl border border-slate-200 p-5 space-y-3">
+        <h2 class="text-sm font-black text-slate-800">➕ 發起新共學讀書會（練功登記）</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">目標證照</label>
+            <select id="new-team-cert" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
+              <option value="永續發展基礎能力測驗">永續發展基礎能力測驗</option>
+              <option value="信託業務人員">信託業務人員</option>
+              <option value="金融市場常識與職業道德">金融市場常識與職業道德</option>
+              <option value="生成式AI">生成式AI</option>
+              <option value="銀行內控與內稽">銀行內控與內稽</option>
+              <option value="證券商業務人員">證券商業務人員</option>
+              <option value="期貨商業務員">期貨商業務員</option>
+              <option value="人身保險業務員">人身保險業務員</option>
+              <option value="多益">多益</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">📅 目標考試梯次（日曆選擇）</label>
+            <input id="new-team-date" type="date" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-slate-50" />
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="new-team-loc" type="text" placeholder="共學時間地點（例：圖書館 3F 討論室・每週三 18:30）"
+            class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs" />
+          <button type="button" onclick="createTeam()"
+            class="px-5 py-2 rounded-xl bg-[#b5653b] hover:bg-[#9c522c] text-white text-xs font-black transition">
+            發布共學招募
+          </button>
+        </div>
+        <p id="create-team-msg" class="hidden text-xs font-bold text-rose-600"></p>
+      </section>
+
+      <!-- 讀書會列表 -->
+      <section class="bg-white rounded-3xl border border-slate-200 p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-black text-slate-800">🔥 開放招募中的證照讀書會（點擊卡片可查看參與成員）</h2>
+          <span id="permission-tag" class="text-xs font-bold px-2.5 py-1 rounded-full"></span>
+        </div>
+        <div id="team-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+      </section>
+    </div>
+
+    <!-- 分頁二：歷屆筆記 -->
+    <div id="panel-notes" class="hidden space-y-5">
+      <section id="create-note-section" class="hidden bg-white rounded-3xl border border-slate-200 p-5 space-y-3">
+        <h2 class="text-sm font-black text-slate-800">✍️ 線上填寫歷屆證照準備筆記</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <input id="note-sid" type="text" placeholder="學號（如 112175101）" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono" />
+          <input id="note-name" type="text" placeholder="姓名" class="px-3 py-2 rounded-xl border border-slate-300 text-xs" />
+          <select id="note-cert" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
+            <option value="信託業務人員">信託業務人員</option>
+            <option value="永續發展基礎能力測驗">永續發展基礎能力測驗</option>
+            <option value="生成式AI">生成式AI</option>
+            <option value="金融市場常識與職業道德">金融市場常識與職業道德</option>
+            <option value="證券商業務人員">證券商業務人員</option>
+            <option value="多益">多益</option>
+          </select>
+        </div>
+        <textarea id="note-tip" rows="2" placeholder="準備心得分享（例如：刷題順序、重點章節）"
+          class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"></textarea>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="note-app" type="text" placeholder="推薦 APP 或網站（例如：金融研訓院 APP）"
+            class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs" />
+          <button type="button" onclick="addStudyNote()"
+            class="px-5 py-2 rounded-xl bg-[#3d7a47] hover:bg-[#2f6138] text-white text-xs font-black transition">
+            送出心得筆記
+          </button>
+        </div>
+        <p id="create-note-msg" class="hidden text-xs font-bold text-rose-600"></p>
+      </section>
+
+      <section class="bg-white rounded-3xl border border-slate-200 p-5 space-y-3">
+        <h2 class="text-base font-black text-slate-800">📚 學長姐證照準備筆記與推薦工具</h2>
+        <div id="notes-list" class="space-y-3"></div>
+      </section>
+    </div>
   </main>
 
   <!-- 簡易原地學號驗證彈窗 -->
   <div id="quick-modal" class="hidden fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-xl">
-      <h3 class="text-lg font-black text-slate-800">驗證在校生學號</h3>
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-black text-slate-800">驗證在校生學號</h3>
+        <button type="button" onclick="document.getElementById('quick-modal').classList.add('hidden')" class="text-slate-400 font-bold">✕</button>
+      </div>
       <input id="quick-sid-input" type="text" maxlength="10" placeholder="請輸入 7～10 碼學號（如 112175101）"
         class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-sm" />
+      <div class="flex flex-wrap gap-1.5 text-[11px]">
+        <button type="button" onclick="document.getElementById('quick-sid-input').value='112175101'" class="px-2 py-0.5 rounded bg-slate-100 font-mono">112175101</button>
+        <button type="button" onclick="document.getElementById('quick-sid-input').value='113175105'" class="px-2 py-0.5 rounded bg-slate-100 font-mono">113175105</button>
+      </div>
       <p id="quick-sid-err" class="hidden text-xs font-bold text-rose-600"></p>
       <div class="flex gap-2">
         <button type="button" id="btn-to-visitor" class="flex-1 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">切回訪客</button>
@@ -63,19 +154,156 @@
   </div>
 
   <script>
+    // 若單獨開啟此頁且尚未載入 auth.js，自動建立內建容錯權限物件
+    const AuthService = window.IslandAuth || (function () {
+      const KEY = 'fgu_econ_island_session_v1';
+      const KNOWN = {
+        '112175101': { grade: '112級', name: '馬範懿' },
+        '113175105': { grade: '113級', name: '陳品睿' },
+        '114175001': { grade: '114級', name: '陳家佩' }
+      };
+      return {
+        getSession() {
+          try {
+            const raw = sessionStorage.getItem(KEY);
+            if (raw) {
+              const p = JSON.parse(raw);
+              if (p && p.role === 'student') return p;
+            }
+          } catch (e) {}
+          return { role: 'visitor', last3: '', grade: '', displayName: '' };
+        },
+        loginAsStudent(rawId) {
+          const id = String(rawId || '').trim().toUpperCase();
+          if (!/^[A-Za-z0-9]{7,10}$/.test(id)) return { ok: false, error: '請輸入 7 到 10 碼英數字學號。' };
+          const prof = KNOWN[id] || null;
+          const s = { role: 'student', last3: id.slice(-3), grade: prof ? prof.grade : '在校生', displayName: prof ? prof.name : '', fullId: id };
+          try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+          return { ok: true, session: s };
+        },
+        switchToVisitor() {
+          try { sessionStorage.removeItem(KEY); } catch (e) {}
+          return this.getSession();
+        },
+        isStudent() { return this.getSession().role === 'student'; },
+        maskName(name) {
+          if (!name) return '同學';
+          if (this.isStudent()) return name;
+          return name.charAt(0) + '○'.repeat(Math.max(1, name.length - 1));
+        }
+      };
+    })();
+
     const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
     const TEAMS = [
-      { cert: '永續發展基礎能力測驗', date: '2026/12/20 應試梯次', leader: '陳品睿', grade: '113級', loc: '圖書館 3F 討論室・每週三 18:30', count: 2, max: 5 },
-      { cert: '信託業務人員', date: '2026/12/27 應試梯次', leader: '馬範懿', grade: '112級', loc: '雲起樓共學空間・每週四 19:00', count: 2, max: 4 }
+      {
+        id: 't1', cert: '永續發展基礎能力測驗', date: '2026/12/20 應試梯次', leader: '陳品睿', grade: '113級',
+        loc: '圖書館 3F 討論室・每週三 18:30', max: 5, joined: false, expanded: false,
+        members: [
+          { name: '陳品睿', grade: '113級', role: '團長' },
+          { name: '邱宥睿', grade: '113級', role: '成員' }
+        ]
+      },
+      {
+        id: 't2', cert: '信託業務人員', date: '2026/12/27 應試梯次', leader: '馬範懿', grade: '112級',
+        loc: '雲起樓共學空間・每週四 19:00', max: 4, joined: false, expanded: false,
+        members: [
+          { name: '馬範懿', grade: '112級', role: '團長' },
+          { name: '陳家佩', grade: '114級', role: '成員' }
+        ]
+      }
     ];
 
+    const NOTES = [
+      { cert: '信託業務人員', author: '馬範懿', cohort: '112級', app: '金融研訓院 APP ＋ 藍色小本歷屆題庫', tip: '先把信託業法與稅制整理成對照表，近 5 屆考古題刷兩遍穩過！' },
+      { cert: '永續發展基礎能力測驗', author: '陳品睿', cohort: '113級', app: '證基會永續測驗指南網站', tip: '氣候變遷法規與範疇一二三碳盤查定義必考，搭配系上讀書會整理重點很有效率。' }
+    ];
+
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function switchSubTab(tab) {
+      document.getElementById('panel-team').classList.toggle('hidden', tab !== 'team');
+      document.getElementById('panel-notes').classList.toggle('hidden', tab !== 'notes');
+      document.getElementById('tab-team').className = `py-2 rounded-xl text-xs font-black transition ${tab === 'team' ? 'bg-white text-[#b5653b] shadow-sm' : 'text-slate-600'}`;
+      document.getElementById('tab-notes').className = `py-2 rounded-xl text-xs font-black transition ${tab === 'notes' ? 'bg-white text-[#b5653b] shadow-sm' : 'text-slate-600'}`;
+    }
+
+    function toggleExpand(id) {
+      const tm = TEAMS.find(t => t.id === id);
+      if (tm) { tm.expanded = !tm.expanded; renderSubpage(); }
+    }
+
+    function joinTeam(id) {
+      if (!AuthService.isStudent()) return;
+      const tm = TEAMS.find(t => t.id === id);
+      if (!tm || tm.joined) return;
+      const s = AuthService.getSession();
+      tm.joined = true;
+      tm.expanded = true;
+      tm.members.push({ name: s.displayName || `在校生(${s.last3})`, grade: s.grade || '在校生', role: '成員' });
+      renderSubpage();
+    }
+
+    function createTeam() {
+      if (!AuthService.isStudent()) return;
+      const cert = document.getElementById('new-team-cert').value;
+      const rawDate = document.getElementById('new-team-date').value;
+      const loc = document.getElementById('new-team-loc').value.trim();
+      const msg = document.getElementById('create-team-msg');
+      if (!rawDate || !loc) {
+        msg.textContent = '⚠️ 請選擇目標考試日期並填寫共學時間地點。';
+        msg.classList.remove('hidden');
+        return;
+      }
+      msg.classList.add('hidden');
+      const s = AuthService.getSession();
+      const leaderName = s.displayName || `在校生(${s.last3})`;
+      TEAMS.unshift({
+        id: 't_' + Date.now(), cert, date: `${rawDate.replace(/-/g, '/')} 應試梯次`,
+        leader: leaderName, grade: s.grade || '在校生', loc, max: 5, joined: true, expanded: true,
+        members: [{ name: leaderName, grade: s.grade || '在校生', role: '團長' }]
+      });
+      document.getElementById('new-team-loc').value = '';
+      renderSubpage();
+    }
+
+    function addStudyNote() {
+      if (!AuthService.isStudent()) return;
+      const sid = document.getElementById('note-sid').value.trim();
+      const name = document.getElementById('note-name').value.trim();
+      const cert = document.getElementById('note-cert').value;
+      const tip = document.getElementById('note-tip').value.trim();
+      const app = document.getElementById('note-app').value.trim();
+      const msg = document.getElementById('create-note-msg');
+      if (!sid || !name || !tip) {
+        msg.textContent = '⚠️ 請填寫學號、姓名與準備心得分享。';
+        msg.classList.remove('hidden');
+        return;
+      }
+      msg.classList.add('hidden');
+      const s = AuthService.getSession();
+      NOTES.unshift({ cert, author: name, cohort: s.grade || '在校生', app: app || '系上共學講義', tip });
+      document.getElementById('note-tip').value = '';
+      document.getElementById('note-app').value = '';
+      renderSubpage();
+    }
+
     function renderSubpage() {
-      const session = IslandAuth.getSession();
-      const isStudent = IslandAuth.isStudent();
+      const session = AuthService.getSession();
+      const isStudent = AuthService.isStudent();
 
       document.getElementById('subpage-role-badge').textContent = isStudent
-        ? `${session.grade} ${session.displayName} (${session.last3})`
+        ? `${session.grade} ${session.displayName || '在校生'} (${session.last3})`
         : '訪客唯讀模式';
+
+      document.getElementById('create-team-section').classList.toggle('hidden', !isStudent);
+      document.getElementById('create-note-section').classList.toggle('hidden', !isStudent);
+      if (isStudent && session.displayName) {
+        const nameInput = document.getElementById('note-name');
+        if (nameInput && !nameInput.value) nameInput.value = session.displayName;
+      }
 
       const permTag = document.getElementById('permission-tag');
       permTag.textContent = isStudent ? '✅ 在校生完整填寫與報名權限' : '👀 訪客唯讀（無填寫權限）';
@@ -104,28 +332,58 @@
 
       document.getElementById('team-list').innerHTML = TEAMS.map(t => `
         <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="font-black text-sm text-slate-800">${t.cert}</span>
-            <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${t.count}/${t.max} 人</span>
+          <div onclick="toggleExpand('${t.id}')" class="cursor-pointer space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="font-black text-sm text-slate-800">${escapeHtml(t.cert)}</span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${t.members.length}/${t.max} 人</span>
+            </div>
+            <div class="text-xs font-bold text-[#b5653b]">📅 ${escapeHtml(t.date)}</div>
+            <div class="text-xs text-slate-600">📍 ${escapeHtml(t.loc)}・團長：${AuthService.maskName(t.leader)}（${t.grade}）</div>
+            <div class="text-[11px] font-bold text-[#2b7a9b]">${t.expanded ? '▲ 收合參與成員' : `▼ 點擊查看 ${t.members.length} 位參與成員`}</div>
           </div>
-          <div class="text-xs font-bold text-[#b5653b]">📅 ${t.date}</div>
-          <div class="text-xs text-slate-600">📍 ${t.loc}・團長：${IslandAuth.maskName(t.leader)}（${t.grade}）</div>
-          <button type="button" ${isStudent ? '' : 'disabled'}
-            class="w-full py-2 rounded-xl text-xs font-black ${isStudent ? 'bg-[#2b5b78] text-white hover:opacity-95' : 'bg-slate-200 text-slate-500 cursor-not-allowed'}">
-            ${isStudent ? '+1 加入共學練功' : '🔒 僅限在校生報名'}
+          ${t.expanded ? `
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 space-y-1">
+              ${t.members.map(m => `
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-bold text-slate-700">${AuthService.maskName(m.name)}（${m.grade}）</span>
+                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${m.role}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          <button type="button" onclick="joinTeam('${t.id}')" ${isStudent && !t.joined ? '' : 'disabled'}
+            class="w-full py-2 rounded-xl text-xs font-black ${
+              !isStudent ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+              : t.joined ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-[#2b5b78] text-white hover:opacity-95'
+            }">
+            ${!isStudent ? '🔒 僅限在校生報名' : t.joined ? '✅ 已加入共學' : '+1 加入共學練功'}
           </button>
+        </div>
+      `).join('');
+
+      document.getElementById('notes-list').innerHTML = NOTES.map(n => `
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(n.cert)}</span>
+            <span class="text-[11px] font-bold text-slate-500">${n.cohort} · ${AuthService.maskName(n.author)}</span>
+          </div>
+          <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(n.tip)}</p>
+          <div class="text-[11px] font-bold text-[#2b7a9b] bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
+            📱 推薦 APP / 網站：${escapeHtml(n.app)}
+          </div>
         </div>
       `).join('');
     }
 
     document.getElementById('btn-quick-auth').onclick = () => document.getElementById('quick-modal').classList.remove('hidden');
     document.getElementById('btn-to-visitor').onclick = () => {
-      IslandAuth.switchToVisitor();
+      AuthService.switchToVisitor();
       document.getElementById('quick-modal').classList.add('hidden');
       renderSubpage();
     };
     document.getElementById('btn-to-student').onclick = () => {
-      const res = IslandAuth.loginAsStudent(document.getElementById('quick-sid-input').value);
+      const res = AuthService.loginAsStudent(document.getElementById('quick-sid-input').value);
       if (!res.ok) {
         const err = document.getElementById('quick-sid-err');
         err.textContent = res.error;
