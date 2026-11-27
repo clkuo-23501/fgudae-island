@@ -3,20 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>佛光經濟學習島嶼 3D 冒險入口網｜佛光大學應用經濟學系</title>
+  <title>佛光經濟學習島嶼｜佛光大學應用經濟學系</title>
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js 與 OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
       background: linear-gradient(180deg, #8ec3e0 0%, #bfe0f2 58%, #e6dfc8 100%);
-      color: #1e293b; user-select: none; transition: background 1s ease;
+      transition: background 1.2s ease;
     }
     #canvas-container { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; }
     canvas { display: block; width: 100%; height: 100%; outline: none; }
@@ -225,57 +232,90 @@
 
   <script>
     /* =========================================================================
-       1. 內建共用工作階段權限管理器（無需外部依賴即可獨立運作，同網域自動同步）
+       1. 系統設定與資料常數
        ========================================================================= */
+    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
+    const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/fgu-econ-cert-peaks/';
+    const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
     const SESSION_KEY = 'fgu_econ_island_session_v1';
     const ROLE_STORAGE_KEY = 'yilan_island_hub_role_b';
-    const CAMP_WEBHOOK_STORAGE_KEY = 'fgu_econ_camp_webhook_url_v1';
-    const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/economics-cert/';
-    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
-    const APPS_SCRIPT_URL_KEY = 'fgu_island_apps_script_url_v1';
-    const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
+    const APPS_SCRIPT_URL_KEY = 'fgu_econ_apps_script_url_v1';
 
     function getAppsScriptUrl() {
+      try {
+        const custom = localStorage.getItem(APPS_SCRIPT_URL_KEY);
+        if (custom && custom.trim()) return custom.trim();
+      } catch (e) {}
       return DEFAULT_APPS_SCRIPT_URL;
     }
 
     async function syncCampRecordToSheet(payload) {
-      const url = getAppsScriptUrl();
-      const body = Object.assign({ source: 'fgu_island_camp' }, payload);
-      state.lastSyncMessage = '⏳ 正在同步至 Google 試算表...';
-      if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
-
-      if (!url) {
-        const rowText = payload.sheetTab === '歷屆筆記'
-          ? [new Date().toLocaleString('zh-TW'), payload.grade, payload.studentId, payload.name, payload.cert, payload.summary, payload.appOrSite].join('\t')
-          : [new Date().toLocaleString('zh-TW'), payload.actionLabel, payload.grade, payload.studentId, payload.name, payload.cert, payload.examDate, payload.location, payload.role].join('\t');
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = rowText;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          state.lastSyncMessage = '📋 已複製試算表儲存格格式（尚未設定 Apps Script 網址，可直接至試算表 Ctrl+V 貼上）';
-        } catch (e) {
-          state.lastSyncMessage = '⚠️ 尚未設定 Apps Script 寫入網址（點上方 ⚙️ 設定試算表寫入）';
-        }
-        if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
-        return;
-      }
-
+      const targetUrl = getAppsScriptUrl();
       try {
-        await fetch(url, {
+        await fetch(targetUrl, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(body)
+          body: JSON.stringify(Object.assign({ source: 'fgu_island_camp' }, payload))
         });
         state.lastSyncMessage = `✅ 已自動寫入 Google 試算表「${payload.sheetTab}」分頁！`;
-      } catch (err) {
-        state.lastSyncMessage = '⚠️ 試算表連線異常，已先保留於本機畫面中';
+      } catch (e) {
+        state.lastSyncMessage = '⚠️ 試算表寫入失敗，請確認 Apps Script 已部署新版本';
       }
       if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
+    }
+
+    const SHEET_STUDENTS = [];
+    let liveSheetStudents = null;
+    let liveCertHeaders = [];
+    let mentorLoadStatus = 'loading'; // 'loading' | 'loaded' | 'error'
+
+    function normalizeCertTitle(t) {
+      let s = String(t || '').replace(/[\s\(\)（）・\-_]/g, '').toLowerCase();
+      if (s === '金融市場與職業道德' || s === '金融市場常識與職業道德') return '金融市場常識與職業道德';
+      if (s === '信託業業務人員' || s === '信託業務人員') return '信託業務人員';
+      if (s === '銀行內部控制與內部稽核' || s === '銀行內控與內稽') return '銀行內控與內稽';
+      return s;
+    }
+
+    async function fetchLiveSheetMentors() {
+      mentorLoadStatus = 'loading';
+      try {
+        const res = await fetch(`${DEFAULT_APPS_SCRIPT_URL}?action=getPassedMentors&t=${Date.now()}`);
+        const data = await res.json();
+        if (data && data.status === 'ok' && Array.isArray(data.students)) {
+          liveSheetStudents = data.students;
+          liveCertHeaders = Array.isArray(data.certHeaders) ? data.certHeaders : [];
+          mentorLoadStatus = 'loaded';
+          if (state.selectedIslandId === 'camp' || state.selectedIslandId === 'peaks') {
+            openIslandDrawer(state.selectedIslandId);
+          }
+        } else {
+          mentorLoadStatus = 'error';
+        }
+      } catch (e) {
+        mentorLoadStatus = 'error';
+        if (state.selectedIslandId === 'camp' || state.selectedIslandId === 'peaks') {
+          openIslandDrawer(state.selectedIslandId);
+        }
+      }
+    }
+
+    function getActiveStudentsList() {
+      return Array.isArray(liveSheetStudents) ? liveSheetStudents : SHEET_STUDENTS;
+    }
+
+    function getAvailableCertOptions() {
+      const merged = CERT_LIST.map(c => ({ ...c }));
+      const existingNorms = new Set(merged.map(c => normalizeCertTitle(c.name)));
+      liveCertHeaders.forEach(h => {
+        const norm = normalizeCertTitle(h);
+        if (norm && !existingNorms.has(norm)) {
+          existingNorms.add(norm);
+          merged.push({ name: h, category: '試算表證照', tip: '參考試算表已考取學長姐經驗與歷屆筆記準備。' });
+        }
+      });
+      return merged;
     }
 
     const CERT_LIST = [
@@ -290,33 +330,6 @@
       { name: '生成式AI', category: '永續與AI', tip: '掌握 Prompt 工程、LLM 原理與產業應用倫理。' },
       { name: '多益', category: '語言能力', tip: '設定 750+ 目標，累積商務情境閱讀與聽力。' }
     ];
-
-    const SHEET_STUDENTS = [
-      { grade: '111級', studentId: '111175101', name: '羅子涵', certs: [{ name: '永續發展基礎能力測驗', date: '2025/06/14' }, { name: '多益', date: '2025/03/23' }] },
-      { grade: '112級', studentId: '112175101', name: '馬範懿', certs: [{ name: '生成式AI', date: '2025/11/16' }, { name: '永續發展基礎能力測驗', date: '2025/08/24' }, { name: '信託業務人員', date: '2024/06/22' }] },
-      { grade: '112級', studentId: '112175102', name: '劉昱辰', certs: [{ name: '證券商業務人員', date: '2025/01/11' }, { name: '期貨商業務員', date: '2024/09/21' }] },
-      { grade: '113級', studentId: '113175101', name: '邱宥睿', certs: [{ name: '生成式AI', date: '2025/12/14' }, { name: '人身保險業務員', date: '2025/03/08' }] },
-      { grade: '113級', studentId: '113175105', name: '陳品睿', certs: [{ name: '永續發展基礎能力測驗', date: '2026/01/18' }, { name: '銀行內控與內稽', date: '2025/09/13' }, { name: '信託業務人員', date: '2025/04/19' }] },
-      { grade: '114級', studentId: '114175001', name: '陳家佩', certs: [{ name: '生成式AI', date: '2026/06/14' }, { name: '人身保險業務員', date: '2026/03/21' }] }
-    ];
-    let liveSheetStudents = null;
-
-    async function fetchLiveSheetMentors() {
-      try {
-        const res = await fetch(`${DEFAULT_APPS_SCRIPT_URL}?action=getPassedMentors`);
-        const data = await res.json();
-        if (data && Array.isArray(data.students) && data.students.length > 0) {
-          liveSheetStudents = data.students;
-          if (state.selectedIslandId === 'camp' || state.selectedIslandId === 'peaks') {
-            openIslandDrawer(state.selectedIslandId);
-          }
-        }
-      } catch (e) {}
-    }
-
-    function getActiveStudentsList() {
-      return liveSheetStudents || SHEET_STUDENTS;
-    }
 
     const ISLAND_CONFIGS = [
       { id: 'portal', stage: '入學入口', name: '登島傳送門', subtitle: '招生重要日程與入學攻略時程', icon: '🌀', pos: { x: -5, y: 0, z: -24 }, radius: 4.5, restricted: false },
@@ -1464,9 +1477,16 @@
       } else if (islandId === 'camp') {
         const isStudent = state.role === 'student';
         const activeStudents = getActiveStudentsList();
+        const certOptions = getAvailableCertOptions();
+        const targetNorm = normalizeCertTitle(state.selectedCert);
         const mentors = activeStudents.filter(s =>
-          s.certs.some(c => c.name === state.selectedCert || c.name.includes(state.selectedCert) || state.selectedCert.includes(c.name))
+          s.certs.some(c => normalizeCertTitle(c.name) === targetNorm)
         );
+        const mentorDisplayHtml = mentorLoadStatus === 'loading'
+          ? '⏳ 正在同步 Google 試算表最新考取名單...'
+          : mentorLoadStatus === 'error'
+            ? '⚠️ 尚未讀取到試算表資料（請確認 Apps Script 已點「管理部署作業 ➔ 建立新版本」完成部署）'
+            : (mentors.length ? mentors.map(m => `${formatDisplayName(m.name)} (${m.grade})`).join('、') : '尚無紀錄，歡迎搶先開團！');
         body.innerHTML = `
           <div class="bg-[#fdf6f0] border border-[#f5e1d0] rounded-2xl p-3.5 text-xs text-slate-700 leading-relaxed flex flex-col gap-2">
             <div>
@@ -1516,14 +1536,14 @@
             <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
               <div class="text-xs font-black text-slate-800">🎯 選擇目標證照，比對試算表已通過學長姐導師</div>
               <select onchange="selectCampCert(this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
-                ${CERT_LIST.map(c => `<option value="${c.name}" ${state.selectedCert === c.name ? 'selected' : ''}>【${c.category}】${c.name}</option>`).join('')}
+                ${certOptions.map(c => `<option value="${escapeHtml(c.name)}" ${state.selectedCert === c.name ? 'selected' : ''}>【${escapeHtml(c.category)}】${escapeHtml(c.name)}</option>`).join('')}
               </select>
               <div class="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl">
-                💡 備考攻略：${escapeHtml((CERT_LIST.find(c => c.name === state.selectedCert) || {}).tip || '')}
+                💡 備考攻略：${escapeHtml((certOptions.find(c => c.name === state.selectedCert) || {}).tip || '')}
               </div>
               <div class="text-[11px] font-bold text-[#3d7a47]">
                 🏅 已考取學長姐（${mentors.length} 位）：
-                ${mentors.length ? mentors.map(m => `${formatDisplayName(m.name)} (${m.grade})`).join('、') : '尚無紀錄，歡迎搶先開團！'}
+                ${mentorDisplayHtml}
               </div>
             </div>
 
