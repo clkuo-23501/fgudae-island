@@ -283,9 +283,25 @@
       try {
         const res = await fetch(`${DEFAULT_APPS_SCRIPT_URL}?action=getPassedMentors&t=${Date.now()}`);
         const data = await res.json();
-        if (data && data.status === 'ok' && Array.isArray(data.students)) {
-          liveSheetStudents = data.students;
-          liveCertHeaders = Array.isArray(data.certHeaders) ? data.certHeaders : [];
+        const rawList = Array.isArray(data)
+          ? data
+          : (data && Array.isArray(data.students) ? data.students : null);
+
+        if (rawList) {
+          const headersSet = new Set(Array.isArray(data?.certHeaders) ? data.certHeaders : []);
+          liveSheetStudents = rawList
+            .map(st => {
+              const certs = Array.isArray(st.certs) ? st.certs : [];
+              certs.forEach(c => { if (c && c.name) headersSet.add(String(c.name).trim()); });
+              return {
+                grade: String(st.grade || '').trim(),
+                studentId: String(st.studentId || st.id || '').trim(),
+                name: String(st.name || '').trim(),
+                certs: certs
+              };
+            })
+            .filter(st => st.name && st.certs.length > 0);
+          liveCertHeaders = Array.from(headersSet);
           mentorLoadStatus = 'loaded';
           if (state.selectedIslandId === 'camp' || state.selectedIslandId === 'peaks') {
             openIslandDrawer(state.selectedIslandId);
