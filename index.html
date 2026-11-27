@@ -420,6 +420,8 @@
       expandedTeamIds: {},
       editingTeamId: null,
       confirmDeleteTeamId: null,
+      editingNoteId: null,
+      confirmDeleteNoteId: null,
       selectedExamDate: '',
       calendarMonth: new Date(2026, 11, 1),
       calendarOpen: false,
@@ -1583,88 +1585,58 @@
             ` : ''}
 
             <div class="space-y-2.5">
-              <div class="text-xs font-black text-slate-700">🔥 開放招募中的證照讀書會（點擊卡片查看參與成員）</div>
-              ${PRACTICE_TEAMS.map(tm => {
-                const expanded = !!state.expandedTeamIds[tm.id];
-                const isOwner = isStudent && tm.leaderId && tm.leaderId.toUpperCase() === state.studentFullId.toUpperCase();
-                const isEditing = isOwner && state.editingTeamId === tm.id;
-                const isConfirmDel = isOwner && state.confirmDeleteTeamId === tm.id;
+              ${STUDY_NOTES_LIBRARY.map(nt => {
+                const isNoteOwner = isStudent && nt.studentId && nt.studentId.toUpperCase() === state.studentFullId.toUpperCase();
+                const isEditingNote = isNoteOwner && state.editingNoteId === nt.id;
+                const isConfirmDelNote = isNoteOwner && state.confirmDeleteNoteId === nt.id;
                 return `
-                  <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                    <div onclick="toggleTeamExpand('${tm.id}')" class="p-3.5 cursor-pointer hover:bg-slate-50 transition">
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="font-black text-xs text-slate-800">${escapeHtml(tm.cert)}</span>
-                        <div class="flex items-center gap-1.5">
-                          ${isOwner ? `
-                            <button type="button" onclick="event.stopPropagation(); startEditPracticeTeam('${tm.id}')"
-                              class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 text-[11px] font-bold">
-                              ✏️ 修改
-                            </button>
-                            <button type="button" onclick="event.stopPropagation(); askDeletePracticeTeam('${tm.id}')"
-                              class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
-                              🗑️ 刪除
-                            </button>
-                          ` : ''}
-                          <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${tm.members.length}/${tm.max} 人</span>
-                        </div>
-                      </div>
-                      <div class="text-[11px] text-[#b5653b] font-bold mt-1">📅 ${escapeHtml(tm.examDate)}</div>
-                      <div class="text-[11px] text-slate-500 mt-0.5">📍 ${escapeHtml(tm.location)}・團長：${formatDisplayName(tm.leader)}</div>
-                      <div class="text-[11px] text-[#2b7a9b] font-bold mt-1.5">
-                        ${expanded ? '▲ 收合參與成員名單' : `▼ 點擊查看 ${tm.members.length} 位參與同學`}
+                  <div class="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(nt.cert)}</span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] text-slate-400 font-bold">${nt.cohort} · ${formatDisplayName(nt.author)}${isStudent && nt.studentId ? ` (${nt.studentId})` : ''}</span>
+                        ${isNoteOwner ? `
+                          <button type="button" onclick="startEditStudyNote('${nt.id}')"
+                            class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 text-[11px] font-bold">
+                            ✏️ 修改
+                          </button>
+                          <button type="button" onclick="askDeleteStudyNote('${nt.id}')"
+                            class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
+                            🗑️ 刪除
+                          </button>
+                        ` : ''}
                       </div>
                     </div>
-                    ${isConfirmDel ? `
-                      <div class="px-3.5 py-2.5 bg-rose-50 border-t border-rose-200 flex items-center justify-between gap-2 text-[11px]">
-                        <span class="font-bold text-rose-800">確定要刪除此共學讀書會嗎？</span>
+                    ${isConfirmDelNote ? `
+                      <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2 text-[11px]">
+                        <span class="font-bold text-rose-800">確定要刪除這篇準備筆記嗎？</span>
                         <div class="flex gap-1.5">
-                          <button type="button" onclick="cancelDeletePracticeTeam()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
-                          <button type="button" onclick="confirmDeletePracticeTeam('${tm.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
+                          <button type="button" onclick="cancelDeleteStudyNote()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="confirmDeleteStudyNote('${nt.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
                         </div>
                       </div>
                     ` : ''}
-                    ${isEditing ? `
-                      <div class="px-3.5 py-3 bg-amber-50/70 border-t border-amber-200 space-y-2">
-                        <div class="text-[11px] font-black text-slate-800">✏️ 修改讀書會內容</div>
-                        <select id="edit-team-cert-${tm.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
-                          ${CERT_LIST.map(c => `<option value="${c.name}" ${tm.cert === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+                    ${isEditingNote ? `
+                      <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                        <div class="text-[11px] font-black text-slate-800">✏️ 修改歷屆準備筆記</div>
+                        <select id="edit-note-cert-${nt.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
+                          ${certOptions.map(c => `<option value="${escapeHtml(c.name)}" ${nt.cert === c.name ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
                         </select>
-                        <input id="edit-team-date-${tm.id}" type="text" value="${escapeHtml(tm.examDate)}" placeholder="目標考試梯次"
-                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
-                        <input id="edit-team-loc-${tm.id}" type="text" value="${escapeHtml(tm.location)}" placeholder="共學時間地點"
+                        <textarea id="edit-note-tip-${nt.id}" rows="2" placeholder="準備心得分享"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">${escapeHtml(nt.summary)}</textarea>
+                        <input id="edit-note-app-${nt.id}" type="text" value="${escapeHtml(nt.appOrSite)}" placeholder="推薦 APP 或網站"
                           class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
                         <div class="flex gap-2">
-                          <button type="button" onclick="cancelEditPracticeTeam()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
-                          <button type="button" onclick="saveEditPracticeTeam('${tm.id}')" class="flex-1 py-1.5 rounded-lg bg-[#b5653b] text-white text-xs font-black">儲存修改</button>
+                          <button type="button" onclick="cancelEditStudyNote()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="saveEditStudyNote('${nt.id}')" class="flex-1 py-1.5 rounded-lg bg-[#3d7a47] text-white text-xs font-black">儲存修改</button>
                         </div>
                       </div>
-                    ` : ''}
-                    ${expanded ? `
-                      <div class="px-3.5 pb-3 pt-2 bg-slate-50 border-t border-slate-100 space-y-1.5">
-                        ${tm.members.map(mb => `
-                          <div class="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/80">
-                            <div>
-                              <span class="font-bold text-slate-800">${formatDisplayName(mb.name)}</span>
-                              <span class="text-slate-400 ml-1">${mb.grade}${isStudent ? ` · ${mb.studentId}` : ''}</span>
-                            </div>
-                            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${mb.role}</span>
-                          </div>
-                        `).join('')}
+                    ` : `
+                      <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(nt.summary)}</p>
+                      <div class="text-[11px] font-bold text-[#2b7a9b] bg-[#f2f6f9] px-2.5 py-1 rounded-lg">
+                        📱 推薦工具：${escapeHtml(nt.appOrSite)}
                       </div>
-                    ` : ''}
-                    <div class="px-3.5 pb-3 pt-1">
-                      ${isStudent ? `
-                        <button type="button" onclick="joinPracticeTeam('${tm.id}')" ${tm.joined ? 'disabled' : ''}
-                          class="w-full py-2 rounded-xl text-xs font-black transition ${tm.joined ? 'bg-emerald-100 text-emerald-800' : 'bg-[#2b5b78] hover:bg-[#20465c] text-white'}">
-                          ${tm.joined ? '✅ 已加入此共學讀書會' : '+1 加入共學練功'}
-                        </button>
-                      ` : `
-                        <button type="button" onclick="openRoleModal('student')"
-                          class="w-full py-2 rounded-xl bg-slate-100 text-slate-500 text-xs font-bold">
-                          🔒 僅限在校生報名加入
-                        </button>
-                      `}
-                    </div>
+                    `}
                   </div>
                 `;
               }).join('')}
@@ -1963,14 +1935,14 @@
 
     window.submitNewStudyNote = () => {
       if (state.role !== 'student') return;
-      const sid = document.getElementById('note-sid').value.trim();
+      const sid = document.getElementById('note-sid').value.trim().toUpperCase();
       const name = document.getElementById('note-name').value.trim();
       const cert = document.getElementById('note-cert').value;
       const tip = document.getElementById('note-tip').value.trim();
       const app = document.getElementById('note-app').value.trim();
       if (!sid || !name || !tip) return;
       const matched = findStudentById(sid);
-      const cohort = matched ? matched.grade : '在校生';
+      const cohort = matched ? matched.grade : (state.studentProfile ? state.studentProfile.grade : '在校生');
       const appOrSite = app || '系上共學講義';
       STUDY_NOTES_LIBRARY.unshift({
         id: 'n_' + Date.now(), cert, author: name, studentId: sid,
@@ -1978,12 +1950,60 @@
       });
       syncCampRecordToSheet({
         sheetTab: '歷屆筆記',
+        actionLabel: '新增歷屆筆記',
         grade: cohort,
         studentId: sid,
         name,
         cert,
         summary: tip,
         appOrSite
+      });
+    };
+
+    window.startEditStudyNote = (id) => { state.editingNoteId = id; state.confirmDeleteNoteId = null; openIslandDrawer('camp'); };
+    window.cancelEditStudyNote = () => { state.editingNoteId = null; openIslandDrawer('camp'); };
+    window.saveEditStudyNote = (id) => {
+      if (state.role !== 'student') return;
+      const nt = STUDY_NOTES_LIBRARY.find(n => n.id === id);
+      if (!nt || nt.studentId.toUpperCase() !== state.studentFullId.toUpperCase()) return;
+      const newCert = document.getElementById(`edit-note-cert-${id}`)?.value || nt.cert;
+      const newTip = (document.getElementById(`edit-note-tip-${id}`)?.value || '').trim();
+      const newApp = (document.getElementById(`edit-note-app-${id}`)?.value || '').trim() || '系上共學講義';
+      if (!newTip) return;
+      nt.cert = newCert;
+      nt.summary = newTip;
+      nt.appOrSite = newApp;
+      state.editingNoteId = null;
+      syncCampRecordToSheet({
+        sheetTab: '歷屆筆記',
+        actionLabel: '修改歷屆筆記',
+        grade: nt.cohort,
+        studentId: nt.studentId,
+        name: nt.author,
+        cert: nt.cert,
+        summary: nt.summary,
+        appOrSite: nt.appOrSite
+      });
+    };
+    window.askDeleteStudyNote = (id) => { state.confirmDeleteNoteId = id; state.editingNoteId = null; openIslandDrawer('camp'); };
+    window.cancelDeleteStudyNote = () => { state.confirmDeleteNoteId = null; openIslandDrawer('camp'); };
+    window.confirmDeleteStudyNote = (id) => {
+      if (state.role !== 'student') return;
+      const idx = STUDY_NOTES_LIBRARY.findIndex(n => n.id === id);
+      if (idx === -1) return;
+      const removed = STUDY_NOTES_LIBRARY[idx];
+      if (removed.studentId.toUpperCase() !== state.studentFullId.toUpperCase()) return;
+      STUDY_NOTES_LIBRARY.splice(idx, 1);
+      state.confirmDeleteNoteId = null;
+      syncCampRecordToSheet({
+        sheetTab: '歷屆筆記',
+        actionLabel: '刪除歷屆筆記',
+        grade: removed.cohort,
+        studentId: removed.studentId,
+        name: removed.author,
+        cert: removed.cert,
+        summary: removed.summary,
+        appOrSite: removed.appOrSite
       });
     };
 
