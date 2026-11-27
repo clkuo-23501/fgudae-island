@@ -233,14 +233,10 @@
     const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/economics-cert/';
     const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
     const APPS_SCRIPT_URL_KEY = 'fgu_island_apps_script_url_v1';
-    const DEFAULT_APPS_SCRIPT_URL = '';
+    const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
 
     function getAppsScriptUrl() {
-      try {
-        return localStorage.getItem(APPS_SCRIPT_URL_KEY) || DEFAULT_APPS_SCRIPT_URL;
-      } catch (e) {
-        return DEFAULT_APPS_SCRIPT_URL;
-      }
+      return DEFAULT_APPS_SCRIPT_URL;
     }
 
     async function syncCampRecordToSheet(payload) {
@@ -1455,27 +1451,15 @@
               <strong>⛺ 證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。</strong>
             </div>
             ${isStudent
-              ? `<div class="flex flex-wrap gap-1.5">
+              ? `<div class="flex flex-wrap items-center gap-1.5">
                   <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer"
                     class="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-[#9e4f27] font-black text-[11px] hover:bg-amber-50 transition">
                     📊 開啟試算表 ↗
                   </a>
-                  <button type="button" onclick="toggleScriptConfig()"
-                    class="px-2.5 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-slate-700 font-bold text-[11px] hover:bg-amber-50 transition">
-                    ⚙️ ${getAppsScriptUrl() ? '已連線寫入' : '設定試算表寫入'}
-                  </button>
+                  <span class="px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[11px]">
+                    🟢 已自動連線試算表
+                  </span>
                 </div>
-                ${state.scriptConfigOpen ? `
-                  <div class="p-2.5 rounded-xl bg-white border border-[#e3c3a8] space-y-1.5">
-                    <div class="text-[11px] font-bold text-slate-700">貼上 Google Apps Script 部署網址（結尾為 /exec）：</div>
-                    <div class="flex gap-1.5">
-                      <input id="apps-script-url-input" type="url" value="${escapeHtml(getAppsScriptUrl())}" placeholder="https://script.google.com/macros/s/.../exec"
-                        class="flex-1 px-2.5 py-1 rounded-lg border border-slate-300 text-[11px] font-mono" />
-                      <button type="button" onclick="saveAppsScriptUrl()"
-                        class="px-3 py-1 rounded-lg bg-[#b5653b] text-white text-[11px] font-black">儲存</button>
-                    </div>
-                  </div>
-                ` : ''}
                 ${state.lastSyncMessage ? `
                   <div class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
                     ${escapeHtml(state.lastSyncMessage)}
@@ -1860,116 +1844,6 @@
         summary: tip,
         appOrSite
       });
-    };
-
-    function syncCampRecordToSheet(payload, tsvRow) {
-      const fullPayload = Object.assign({ source: 'fgu_island_camp' }, payload);
-      if (state.campWebhookUrl) {
-        fetch(state.campWebhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(fullPayload)
-        }).catch(() => {});
-        state.lastSheetSyncStatus = `✅ 已自動傳送至 Google 試算表【${fullPayload.sheetTab}】分頁！`;
-      } else {
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = tsvRow;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-        } catch (e) {}
-        state.lastSheetSyncStatus = `📋 已將資料列複製到剪貼簿，開啟試算表【${fullPayload.sheetTab}】按 Ctrl+V 即可貼上！`;
-      }
-    }
-
-    window.createNewPracticeTeam = () => {
-      if (state.role !== 'student') return;
-      const loc = document.getElementById('new-team-loc').value.trim();
-      if (!state.selectedExamDate || !loc) return;
-      const leaderName = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
-      const leaderGrade = state.studentProfile ? state.studentProfile.grade : '在校生';
-      const examDateLabel = `${state.selectedExamDate} 應試梯次`;
-      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
-      const newId = 'tm_' + Date.now();
-      PRACTICE_TEAMS.unshift({
-        id: newId, cert: state.selectedCert, examDate: examDateLabel,
-        leader: leaderName, leaderId: state.studentFullId, grade: leaderGrade,
-        location: loc, max: 5, joined: true,
-        members: [{ name: leaderName, studentId: state.studentFullId, grade: leaderGrade, role: '團長', note: '歡迎一起組隊練功！' }]
-      });
-      syncCampRecordToSheet({
-        sheetTab: '揪團練功',
-        timestamp: nowStr,
-        actionLabel: '發起組隊',
-        grade: leaderGrade,
-        studentId: state.studentFullId,
-        name: leaderName,
-        cert: state.selectedCert,
-        examDate: examDateLabel,
-        location: loc,
-        role: '團長'
-      }, [nowStr, '發起組隊', leaderGrade, state.studentFullId, leaderName, state.selectedCert, examDateLabel, loc, '團長'].join('\t'));
-      state.expandedTeamIds[newId] = true;
-      state.selectedExamDate = '';
-      openIslandDrawer('camp');
-    };
-
-    window.joinPracticeTeam = (id) => {
-      if (state.role !== 'student') return;
-      const tm = PRACTICE_TEAMS.find(t => t.id === id);
-      if (!tm || tm.joined) return;
-      const name = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
-      const grade = state.studentProfile ? state.studentProfile.grade : '在校生';
-      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
-      tm.joined = true;
-      tm.members.push({ name, studentId: state.studentFullId, grade, role: '成員', note: '+1 一起衝刺考照！' });
-      syncCampRecordToSheet({
-        sheetTab: '揪團練功',
-        timestamp: nowStr,
-        actionLabel: '+1加入共學',
-        grade: grade,
-        studentId: state.studentFullId,
-        name: name,
-        cert: tm.cert,
-        examDate: tm.examDate,
-        location: tm.location,
-        role: '成員'
-      }, [nowStr, '+1加入共學', grade, state.studentFullId, name, tm.cert, tm.examDate, tm.location, '成員'].join('\t'));
-      state.expandedTeamIds[id] = true;
-      openIslandDrawer('camp');
-    };
-
-    window.submitNewStudyNote = () => {
-      if (state.role !== 'student') return;
-      const sid = document.getElementById('note-sid').value.trim();
-      const name = document.getElementById('note-name').value.trim();
-      const cert = document.getElementById('note-cert').value;
-      const tip = document.getElementById('note-tip').value.trim();
-      const app = document.getElementById('note-app').value.trim();
-      if (!sid || !name || !tip) return;
-      const matched = findStudentById(sid);
-      const cohort = matched ? matched.grade : '在校生';
-      const appOrSite = app || '系上共學講義';
-      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
-      STUDY_NOTES_LIBRARY.unshift({
-        id: 'n_' + Date.now(), cert, author: name, studentId: sid,
-        cohort: cohort,
-        appOrSite: appOrSite, summary: tip
-      });
-      syncCampRecordToSheet({
-        sheetTab: '歷屆筆記',
-        timestamp: nowStr,
-        grade: cohort,
-        studentId: sid,
-        name: name,
-        cert: cert,
-        summary: tip,
-        appOrSite: appOrSite
-      }, [nowStr, cohort, sid, name, cert, tip, appOrSite].join('\t'));
-      openIslandDrawer('camp');
     };
 
     /* =========================================================================
