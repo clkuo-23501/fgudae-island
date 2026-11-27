@@ -198,6 +198,8 @@
     let syncBannerMsg = '';
     let editingTeamId = null;
     let confirmDeleteTeamId = null;
+    let editingNoteId = null;
+    let confirmDeleteNoteId = null;
 
     async function sendToSheet(payload) {
       try {
@@ -234,8 +236,8 @@
     ];
 
     const NOTES = [
-      { cert: '信託業務人員', author: '馬範懿', cohort: '112級', app: '金融研訓院 APP ＋ 藍色小本歷屆題庫', tip: '先把信託業法與稅制整理成對照表，近 5 屆考古題刷兩遍穩過！' },
-      { cert: '永續發展基礎能力測驗', author: '陳品睿', cohort: '113級', app: '證基會永續測驗指南網站', tip: '氣候變遷法規與範疇一二三碳盤查定義必考，搭配系上讀書會整理重點很有效率。' }
+      { id: 'n1', cert: '信託業務人員', author: '馬範懿', studentId: '112175101', cohort: '112級', app: '金融研訓院 APP ＋ 藍色小本歷屆題庫', tip: '先把信託業法與稅制整理成對照表，近 5 屆考古題刷兩遍穩過！' },
+      { id: 'n2', cert: '永續發展基礎能力測驗', author: '陳品睿', studentId: '113175105', cohort: '113級', app: '證基會永續測驗指南網站', tip: '氣候變遷法規與範疇一二三碳盤查定義必考，搭配系上讀書會整理重點很有效率。' }
     ];
 
     function escapeHtml(str) {
@@ -362,7 +364,7 @@
 
     function addStudyNote() {
       if (!AuthService.isStudent()) return;
-      const sid = document.getElementById('note-sid').value.trim();
+      const sid = document.getElementById('note-sid').value.trim().toUpperCase();
       const name = document.getElementById('note-name').value.trim();
       const cert = document.getElementById('note-cert').value;
       const tip = document.getElementById('note-tip').value.trim();
@@ -377,17 +379,70 @@
       const s = AuthService.getSession();
       const cohort = s.grade || '在校生';
       const appOrSite = app || '系上共學講義';
-      NOTES.unshift({ cert, author: name, cohort, app: appOrSite, tip });
+      NOTES.unshift({ id: 'n_' + Date.now(), cert, author: name, studentId: sid, cohort, app: appOrSite, tip });
       document.getElementById('note-tip').value = '';
       document.getElementById('note-app').value = '';
       sendToSheet({
         sheetTab: '歷屆筆記',
+        actionLabel: '新增歷屆筆記',
         grade: cohort,
         studentId: sid,
         name,
         cert,
         summary: tip,
         appOrSite
+      });
+    }
+
+    function startEditNote(id) { editingNoteId = id; confirmDeleteNoteId = null; renderSubpage(); }
+    function cancelEditNote() { editingNoteId = null; renderSubpage(); }
+    function saveEditNote(id) {
+      if (!AuthService.isStudent()) return;
+      const nt = NOTES.find(n => n.id === id);
+      const s = AuthService.getSession();
+      const myId = String(s.fullId || s.last3 || '').toUpperCase();
+      if (!nt || String(nt.studentId).toUpperCase() !== myId) return;
+      const newCert = document.getElementById(`edit-note-cert-${id}`)?.value || nt.cert;
+      const newTip = (document.getElementById(`edit-note-tip-${id}`)?.value || '').trim();
+      const newApp = (document.getElementById(`edit-note-app-${id}`)?.value || '').trim() || '系上共學講義';
+      if (!newTip) return;
+      nt.cert = newCert;
+      nt.tip = newTip;
+      nt.app = newApp;
+      editingNoteId = null;
+      sendToSheet({
+        sheetTab: '歷屆筆記',
+        actionLabel: '修改歷屆筆記',
+        grade: nt.cohort,
+        studentId: nt.studentId,
+        name: nt.author,
+        cert: nt.cert,
+        summary: nt.tip,
+        appOrSite: nt.app
+      });
+    }
+
+    function askDeleteNote(id) { confirmDeleteNoteId = id; editingNoteId = null; renderSubpage(); }
+    function cancelDeleteNote() { confirmDeleteNoteId = null; renderSubpage(); }
+    function confirmDeleteNote(id) {
+      if (!AuthService.isStudent()) return;
+      const idx = NOTES.findIndex(n => n.id === id);
+      if (idx === -1) return;
+      const s = AuthService.getSession();
+      const myId = String(s.fullId || s.last3 || '').toUpperCase();
+      const removed = NOTES[idx];
+      if (String(removed.studentId).toUpperCase() !== myId) return;
+      NOTES.splice(idx, 1);
+      confirmDeleteNoteId = null;
+      sendToSheet({
+        sheetTab: '歷屆筆記',
+        actionLabel: '刪除歷屆筆記',
+        grade: removed.cohort,
+        studentId: removed.studentId,
+        name: removed.author,
+        cert: removed.cert,
+        summary: removed.tip,
+        appOrSite: removed.app
       });
     }
 
@@ -402,41 +457,68 @@
 
       document.getElementById('create-team-section').classList.toggle('hidden', !isStudent);
       document.getElementById('create-note-section').classList.toggle('hidden', !isStudent);
-      if (isStudent && session.displayName) {
-        const nameInput = document.getElementById('note-name');
-        if (nameInput && !nameInput.value) nameInput.value = session.displayName;
+      if (isStudent) {
+        const sidInput = document.getElementById('note-sid');
+        if (sidInput && !sidInput.value && session.fullId) sidInput.value = session.fullId;
+        if (session.displayName) {
+          const nameInput = document.getElementById('note-name');
+          if (nameInput && !nameInput.value) nameInput.value = session.displayName;
+        }
       }
 
       const permTag = document.getElementById('permission-tag');
-      permTag.textContent = isStudent ? '✅ 在校生完整填寫與報名權限' : '👀 訪客唯讀（無填寫權限）';
-      permTag.className = `text-xs font-bold px-2.5 py-1 rounded-full ${isStudent ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`;
-
-      const banner = document.getElementById('sheet-access-banner');
-      if (isStudent) {
-        banner.className = 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] space-y-2.5';
-        banner.innerHTML = `
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-slate-700 font-bold">📊 已解鎖「經濟系證照考取」Google 試算表</span>
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">🟢 自動寫入已連線</span>
+      document.getElementById('notes-list').innerHTML = NOTES.map(n => {
+        const isNoteOwner = isStudent && n.studentId && String(n.studentId).toUpperCase() === myCurrentId;
+        const isEditingNote = isNoteOwner && editingNoteId === n.id;
+        const isConfirmDelNote = isNoteOwner && confirmDeleteNoteId === n.id;
+        return `
+          <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(n.cert)}</span>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] font-bold text-slate-500">${n.cohort} · ${AuthService.maskName(n.author)}</span>
+                ${isNoteOwner ? `
+                  <button type="button" onclick="startEditNote('${n.id}')"
+                    class="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:bg-amber-50 text-slate-700 text-[11px] font-bold">
+                    ✏️ 修改
+                  </button>
+                  <button type="button" onclick="askDeleteNote('${n.id}')"
+                    class="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
+                    🗑️ 刪除
+                  </button>
+                ` : ''}
+              </div>
             </div>
-            <a href="${SHEET_URL}" target="_blank" rel="noopener noreferrer"
-              class="px-4 py-2 rounded-xl bg-[#b5653b] text-white text-xs font-black hover:opacity-95">
-              開啟試算表 ↗
-            </a>
+            ${isConfirmDelNote ? `
+              <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2 text-xs">
+                <span class="font-bold text-rose-800">確定刪除此篇筆記？</span>
+                <div class="flex gap-1.5">
+                  <button type="button" onclick="cancelDeleteNote()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
+                  <button type="button" onclick="confirmDeleteNote('${n.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
+                </div>
+              </div>
+            ` : ''}
+            ${isEditingNote ? `
+              <div class="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
+                <div class="text-xs font-black text-slate-800">✏️ 修改歷屆準備筆記</div>
+                <input id="edit-note-cert-${n.id}" type="text" value="${escapeHtml(n.cert)}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white font-bold" />
+                <textarea id="edit-note-tip-${n.id}" rows="2" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white">${escapeHtml(n.tip)}</textarea>
+                <input id="edit-note-app-${n.id}" type="text" value="${escapeHtml(n.app)}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                <div class="flex gap-2">
+                  <button type="button" onclick="cancelEditNote()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
+                  <button type="button" onclick="saveEditNote('${n.id}')" class="flex-1 py-1.5 rounded-lg bg-[#3d7a47] text-white text-xs font-black">儲存修改</button>
+                </div>
+              </div>
+            ` : `
+              <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(n.tip)}</p>
+              <div class="text-[11px] font-bold text-[#2b7a9b] bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
+                📱 推薦 APP / 網站：${escapeHtml(n.app)}
+              </div>
+            `}
           </div>
-          ${syncBannerMsg ? `<div class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">${escapeHtml(syncBannerMsg)}</div>` : ''}
         `;
-      } else {
-        banner.className = 'rounded-2xl p-4 border border-slate-200 bg-slate-100 flex flex-wrap items-center justify-between gap-3';
-        banner.innerHTML = `
-          <div class="text-xs text-slate-600 font-bold">🔒 經濟系證照考取試算表連結僅限在校生點按開啟</div>
-          <button type="button" onclick="document.getElementById('quick-modal').classList.remove('hidden')"
-            class="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-black">
-            驗證學號解鎖
-          </button>
-        `;
-      }
+      }).join('');
+    }
 
       document.getElementById('team-list').innerHTML = TEAMS.map(t => {
         const isOwner = isStudent && t.leaderId && String(t.leaderId).toUpperCase() === myCurrentId;
