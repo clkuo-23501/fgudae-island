@@ -467,6 +467,23 @@
       }
 
       const permTag = document.getElementById('permission-tag');
+      if (permTag) {
+        permTag.className = `text-xs font-bold px-2.5 py-1 rounded-full ${isStudent ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`;
+        permTag.textContent = isStudent ? '✅ 在校生可報名/發起' : '👀 訪客僅限瀏覽';
+      }
+
+      const banner = document.getElementById('sheet-access-banner');
+      if (banner) {
+        banner.className = isStudent
+          ? 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] flex flex-wrap items-center justify-between gap-2'
+          : 'rounded-2xl p-4 border border-slate-200 bg-slate-100 flex flex-wrap items-center justify-between gap-2';
+        banner.innerHTML = isStudent
+          ? `<div class="text-xs text-slate-700 font-bold">📊 經濟系證照考取試算表：<span class="text-emerald-700">🟢 已自動連線同步</span> ${syncBannerMsg ? `｜${escapeHtml(syncBannerMsg)}` : ''}</div>
+             <a href="${SHEET_URL}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-[#9e4f27] font-black text-xs">開啟試算表 ↗</a>`
+          : `<div class="text-xs text-slate-600 font-bold">🔒 經濟系證照考取試算表與報名功能僅限在校生開啟</div>
+             <button type="button" onclick="document.getElementById('quick-modal').classList.remove('hidden')" class="px-3 py-1.5 rounded-xl bg-[#2b5b78] text-white font-black text-xs">驗證學號</button>`;
+      }
+
       document.getElementById('notes-list').innerHTML = NOTES.map(n => {
         const isNoteOwner = isStudent && n.studentId && String(n.studentId).toUpperCase() === myCurrentId;
         const isEditingNote = isNoteOwner && editingNoteId === n.id;
@@ -589,19 +606,6 @@
           </div>
         `;
       }).join('');
-
-      document.getElementById('notes-list').innerHTML = NOTES.map(n => `
-        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-1.5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(n.cert)}</span>
-            <span class="text-[11px] font-bold text-slate-500">${n.cohort} · ${AuthService.maskName(n.author)}</span>
-          </div>
-          <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(n.tip)}</p>
-          <div class="text-[11px] font-bold text-[#2b7a9b] bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
-            📱 推薦 APP / 網站：${escapeHtml(n.app)}
-          </div>
-        </div>
-      `).join('');
     }
 
     document.getElementById('btn-quick-auth').onclick = () => document.getElementById('quick-modal').classList.remove('hidden');
