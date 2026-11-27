@@ -195,11 +195,11 @@
     })();
 
     const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
-    const APPS_SCRIPT_URL_KEY = 'fgu_island_apps_script_url_v1';
+    const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
     let syncBannerMsg = '';
 
     function getAppsScriptUrl() {
-      try { return localStorage.getItem(APPS_SCRIPT_URL_KEY) || ''; } catch (e) { return ''; }
+      return DEFAULT_APPS_SCRIPT_URL;
     }
 
     function saveSubpageScriptUrl() {
@@ -381,22 +381,17 @@
 
       const banner = document.getElementById('sheet-access-banner');
       if (isStudent) {
-        banner.className = 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] space-y-3';
+        banner.className = 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] space-y-2.5';
         banner.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="text-xs text-slate-700 font-bold">📊 已解鎖「經濟系證照考取」Google 試算表存取與自動寫入權限</div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-700 font-bold">📊 已解鎖「經濟系證照考取」Google 試算表</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">🟢 自動寫入已連線</span>
+            </div>
             <a href="${SHEET_URL}" target="_blank" rel="noopener noreferrer"
               class="px-4 py-2 rounded-xl bg-[#b5653b] text-white text-xs font-black hover:opacity-95">
               開啟試算表 ↗
             </a>
-          </div>
-          <div class="flex flex-col sm:flex-row gap-2">
-            <input id="subpage-script-url" type="url" value="${escapeHtml(getAppsScriptUrl())}" placeholder="貼上 Apps Script 部署網址（結尾 /exec）以自動寫入試算表"
-              class="flex-1 px-3 py-1.5 rounded-xl border border-[#e3c3a8] bg-white text-xs font-mono" />
-            <button type="button" onclick="saveSubpageScriptUrl()"
-              class="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-black">
-              儲存寫入網址
-            </button>
           </div>
           ${syncBannerMsg ? `<div class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">${escapeHtml(syncBannerMsg)}</div>` : ''}
         `;
