@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>宜蘭學習島嶼 3D 冒險入口網｜佛光大學應用經濟學系</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="auth.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(180deg, #8ec3e0 0%, #bfe0f2 58%, #e6dfc8 100%);
+      color: #1e293b; user-select: none; transition: background 1s ease;
+    }
+    #canvas-container { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; }
+    canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+    .island-label {
+      position: absolute; transform: translate(-50%, -100%);
+      pointer-events: auto; cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease; z-index: 10;
+    }
+    .island-label:hover { transform: translate(-50%, -106%) scale(1.05); z-index: 15; }
+    .island-label-card {
+      background: rgba(252, 250, 245, 0.96);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(203, 213, 225, 0.95);
+      box-shadow: 0 6px 18px rgba(30, 41, 59, 0.16);
+      border-radius: 9999px; padding: 6px 14px;
+      display: flex; align-items: center; gap: 6px; white-space: nowrap; color: #1e293b;
+    }
+    .island-label-card.locked {
+      background: rgba(30, 41, 59, 0.92);
+      border-color: rgba(148, 163, 184, 0.5); color: #f8fafc;
+    }
+    .island-label-pin {
+      width: 0; height: 0;
+      border-left: 6px solid transparent; border-right: 6px solid transparent;
+      border-top: 7px solid rgba(252, 250, 245, 0.96); margin: 0 auto;
+    }
+    .island-label-card.locked + .island-label-pin { border-top-color: rgba(30, 41, 59, 0.92); }
+
+    .glass-drawer {
+      background: rgba(252, 250, 245, 0.98);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: -8px 0 28px rgba(30, 41, 59, 0.16);
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .reduce-motion * {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.05s !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D 畫布 -->
+  <div id="canvas-container"></div>
+
+  <!-- 3D 空間投影名牌 -->
+  <div id="labels-layer" class="fixed inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+  <!-- 頂部 HUD 列 -->
+  <header class="fixed top-0 left-0 right-0 z-20 p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+    <div class="pointer-events-auto flex flex-wrap items-center gap-2">
+      <div class="bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl px-3.5 py-2 flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2b7a9b] to-[#3d7a47] flex items-center justify-center text-white font-black text-lg shadow-sm">🏝️</div>
+        <div>
+          <h1 class="text-sm sm:text-base font-black text-slate-800 leading-tight">宜蘭學習島嶼</h1>
+          <p class="text-[11px] text-slate-500 font-medium hidden sm:block">佛光應用經濟學系・多島入口主頁</p>
+        </div>
+      </div>
+
+      <!-- 宜蘭礁溪即時氣象 -->
+      <div class="bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl px-3 py-1.5 flex items-center gap-2">
+        <span id="weather-icon" class="text-base sm:text-lg">🌤️</span>
+        <div class="leading-tight">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] font-black text-slate-700">宜蘭礁溪</span>
+            <span id="weather-temp" class="text-xs font-black text-[#2b7a9b]">22°C</span>
+          </div>
+          <div id="weather-desc" class="text-[10px] font-bold text-slate-500">同步氣象中...</div>
+        </div>
+        <button id="btn-weather-mode" type="button"
+          class="ml-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition">
+          即時
+        </button>
+      </div>
+    </div>
+
+    <div class="pointer-events-auto flex items-center gap-2">
+      <button id="btn-motion-toggle" type="button"
+        class="bg-[#fcfaf5]/95 hover:bg-white backdrop-blur-md border border-slate-200/90 shadow-sm rounded-xl px-2.5 py-2 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition">
+        <span id="motion-icon">🍃</span>
+        <span id="motion-text" class="hidden md:inline">柔和動態</span>
+      </button>
+
+      <div class="bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl p-1.5 pl-3 flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
+          <span id="role-dot" class="w-2.5 h-2.5 rounded-full bg-[#3d7a47]"></span>
+          <span id="role-badge-text" class="text-xs sm:text-sm font-bold text-slate-800">訪客模式</span>
+        </div>
+        <button id="btn-switch-role" type="button"
+          class="bg-[#2b5b78] hover:bg-[#20465c] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">
+          切換身分
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 操作提示 -->
+  <div class="fixed top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+    <div class="bg-slate-800/75 backdrop-blur-md text-white text-[11px] sm:text-xs font-medium px-3.5 py-1.5 rounded-full shadow-sm whitespace-nowrap">
+      拖曳旋轉・縮放瀏覽・點擊五座島嶼開啟功能模組或前往獨立專頁
+    </div>
+  </div>
+
+  <!-- 底部五座島嶼快速導覽列 -->
+  <nav aria-label="島嶼快速導覽" class="fixed bottom-3 left-0 right-0 z-20 px-3 pointer-events-none">
+    <div class="max-w-3xl mx-auto pointer-events-auto">
+      <div id="bottom-nav-bar" class="bg-[#fcfaf5]/95 backdrop-blur-md border border-slate-200/90 shadow-lg rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar"></div>
+    </div>
+  </nav>
+
+  <!-- 島嶼內容抽屜面板 -->
+  <aside id="island-drawer" aria-hidden="true"
+    class="fixed z-30 inset-x-0 bottom-0 md:inset-y-0 md:left-auto md:right-0 w-full md:w-[460px] max-h-[84vh] md:max-h-full rounded-t-3xl md:rounded-none md:rounded-l-3xl glass-drawer border-t md:border-t-0 md:border-l border-slate-200/90 flex flex-col transform translate-y-full md:translate-y-0 md:translate-x-full transition-transform duration-300 ease-out">
+
+    <div class="md:hidden w-full flex justify-center pt-2.5 pb-1">
+      <div class="w-12 h-1.5 rounded-full bg-slate-300"></div>
+    </div>
+
+    <div class="px-5 pt-3 pb-4 border-b border-slate-200/80 flex items-start justify-between gap-3">
+      <div class="flex items-center gap-3.5 min-w-0">
+        <div class="w-16 h-16 rounded-2xl bg-[#e4f0f7] border border-[#c8dce8] flex-shrink-0 overflow-hidden shadow-inner">
+          <canvas id="mini-island-canvas" width="128" height="128" class="w-full h-full block"></canvas>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 mb-1">
+            <span id="drawer-stage-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#e4f0f7] text-[#2b5b78]">入學入口</span>
+            <span id="drawer-lock-badge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">🔒 在校生專屬</span>
+          </div>
+          <h2 id="drawer-title" class="text-xl font-black text-slate-800 truncate">登島傳送門</h2>
+          <p id="drawer-subtitle" class="text-xs text-slate-500 font-medium line-clamp-2 mt-0.5">招生重要日程與入學攻略時程</p>
+        </div>
+      </div>
+
+      <button id="btn-close-drawer" type="button" aria-label="關閉面板"
+        class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center flex-shrink-0 transition">
+        ✕
+      </button>
+    </div>
+
+    <div id="drawer-body" class="p-5 overflow-y-auto flex-1 space-y-4 text-slate-700"></div>
+  </aside>
+
+  <!-- 身分選擇與學號驗證彈窗 -->
+  <div id="role-modal" class="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300">
+    <div class="bg-[#fcfaf5] rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2b7a9b] to-[#3d7a47] flex items-center justify-center text-2xl shadow-sm">🧭</div>
+        <div>
+          <span class="text-xs font-bold text-[#2b7a9b]">佛光大學應用經濟學系</span>
+          <h2 class="text-xl font-black text-slate-800">請選擇您的冒險身分</h2>
+        </div>
+      </div>
+
+      <p class="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
+        學號僅於瀏覽器記憶體中檢核格式與比對名冊，不會儲存或傳送。
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <button type="button" id="choice-visitor"
+          class="text-left p-4 rounded-2xl border-2 border-[#3d7a47] bg-[#eff7f1] transition focus:outline-none">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-2xl">🎒</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#dceee0] text-[#285932]">免輸入</span>
+          </div>
+          <div class="font-black text-slate-800 text-base">訪客 / 高中考生</div>
+          <p class="text-xs text-slate-600 mt-1">可瀏覽傳送門、新手村、揪團練功（唯讀）與百岳最新名單。</p>
+        </button>
+
+        <button type="button" id="choice-student"
+          class="text-left p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#2b7a9b] transition focus:outline-none">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-2xl">🎓</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#e4f0f7] text-[#2b5b78]">全島解鎖</span>
+          </div>
+          <div class="font-black text-slate-800 text-base">在校生</div>
+          <p class="text-xs text-slate-600 mt-1">輸入學號解鎖揪團填寫、百岳獨立網站與職場副本島。</p>
+        </button>
+      </div>
+
+      <div id="student-id-section" class="hidden mb-4 bg-[#f2f6f9] p-4 rounded-2xl border border-[#d6e4ed]">
+        <label for="student-id-input" class="block text-xs font-bold text-slate-700 mb-1.5">
+          請輸入學號（如 112175101，或 7～10 碼英數字）
+        </label>
+        <input id="student-id-input" type="text" maxlength="10" autocomplete="off" placeholder="例如：112175101"
+          class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#2b7a9b]" />
+        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] text-slate-500">快速體驗：</span>
+          <button type="button" onclick="fillDemoStudentId('112175101')" class="text-[11px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-[#2b5b78]">112175101 (馬範懿)</button>
+          <button type="button" onclick="fillDemoStudentId('113175105')" class="text-[11px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-[#2b5b78]">113175105 (陳品睿)</button>
+          <button type="button" onclick="fillDemoStudentId('114175001')" class="text-[11px] font-mono px-2 py-0.5 rounded bg-white border border-slate-200 text-[#2b5b78]">114175001 (陳家佩)</button>
+        </div>
+        <p id="student-id-error" class="hidden text-xs font-bold text-rose-600 mt-1.5">
+          ⚠️ 請輸入 7 到 10 碼英數字學號。
+        </p>
+      </div>
+
+      <button id="btn-confirm-role" type="button"
+        class="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-[#2b7a9b] to-[#3d7a47] hover:opacity-95 text-white font-black text-sm shadow-md transition">
+        開始探索宜蘭學習島嶼 ➔
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* =========================================================================
+       1. 核心資料配置（方案 B：入口主頁輕量化 + 外部獨立頁面連結）
+       ========================================================================= */
+    const ROLE_STORAGE_KEY = 'yilan_island_hub_role_b';
+    const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/economics-cert/';
+    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
+
+    const CERT_LIST = [
+      { name: '金融市場常識與職業道德', category: '共同', tip: '題庫型入門必備，考前刷完官方題庫即可高分通過。' },
+      { name: '信託業務人員', category: '銀行業務', tip: '熟記信託業法比例限制與課稅規定，搭配近 5 屆考古題。' },
+      { name: '銀行內控與內稽', category: '銀行業務', tip: '法規題占比高，適合與信託證照接續準備。' },
+      { name: '證券商業務人員', category: '證券期貨投信投顧', tip: '投資學公式與證券交易法規並重。' },
+      { name: '期貨商業務員', category: '證券期貨投信投顧', tip: '保證金計算、選擇權損益圖為必考核心。' },
+      { name: '人身保險業務員', category: '保險業務', tip: '保險法規觀念清晰，適合大一建立證照信心。' },
+      { name: 'TBSA商務企劃初階', category: '商務企劃', tip: '行銷企劃書架構與 STP/4P 工具應用。' },
+      { name: '永續發展基礎能力測驗', category: '永續與AI', tip: '涵蓋 ESG 法規、碳盤查與永續金融揭露趨勢。' },
+      { name: '生成式AI', category: '永續與AI', tip: '掌握 Prompt 工程、LLM 原理與產業應用倫理。' },
+      { name: '多益', category: '語言能力', tip: '設定 750+ 目標，累積商務情境閱讀與聽力。' }
+    ];
+
+    const SHEET_STUDENTS = [
+      { grade: '111級', studentId: '111175101', name: '羅子涵', certs: [{ name: '永續發展基礎能力測驗', date: '2025/06/14' }, { name: '多益', date: '2025/03/23' }] },
+      { grade: '112級', studentId: '112175101', name: '馬範懿', certs: [{ name: '生成式AI', date: '2025/11/16' }, { name: '永續發展基礎能力測驗', date: '2025/08/24' }, { name: '信託業務人員', date: '2024/06/22' }] },
+      { grade: '112級', studentId: '112175102', name: '劉昱辰', certs: [{ name: '證券商業務人員', date: '2025/01/11' }, { name: '期貨商業務員', date: '2024/09/21' }] },
+      { grade: '113級', studentId: '113175101', name: '邱宥睿', certs: [{ name: '生成式AI', date: '2025/12/14' }, { name: '人身保險業務員', date: '2025/03/08' }] },
+      { grade: '113級', studentId: '113175105', name: '陳品睿', certs: [{ name: '永續發展基礎能力測驗', date: '2026/01/18' }, { name: '銀行內控與內稽', date: '2025/09/13' }, { name: '信託業務人員', date: '2025/04/19' }] },
+      { grade: '114級', studentId: '114175001', name: '陳家佩', certs: [{ name: '生成式AI', date: '2026/06/14' }, { name: '人身保險業務員', date: '2026/03/21' }] },
+      { grade: '115級', studentId: '115175003', name: '陳亮宇', certs: [{ name: '生成式AI', date: '2026/11/15' }, { name: '金融市場常識與職業道德', date: '2026/10/25' }] }
+    ];
+
+    const ISLAND_CONFIGS = [
+      { id: 'portal', stage: '入學入口', name: '登島傳送門', subtitle: '招生重要日程與入學攻略時程', icon: '🌀', pos: { x: -5, y: 0, z: -24 }, radius: 4.5, restricted: false, colorHex: '#2b7a9b', standaloneUrl: '' },
+      { id: 'village', stage: '第一站', name: '冒險新手村', subtitle: '學長姐交換、學習、活動與職場體驗分享', icon: '🏡', pos: { x: 16, y: 0, z: -13 }, radius: 5.8, restricted: false, colorHex: '#3d7a47', standaloneUrl: '' },
+      { id: 'camp', stage: '第二站', name: '揪團練功', subtitle: '證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。', icon: '⛺', pos: { x: 20, y: 0, z: 12 }, radius: 5.1, restricted: false, colorHex: '#b5653b', standaloneUrl: 'camp.html' },
+      { id: 'peaks', stage: '第三站', name: '百岳修煉島', subtitle: '最新登記通過名單與獨立版修煉島入口', icon: '🏔️', pos: { x: -3, y: 0, z: 24 }, radius: 6.7, restricted: false, colorHex: '#4f6d7a', standaloneUrl: PEAKS_STANDALONE_URL },
+      { id: 'workplace', stage: '第四站', name: '職場副本島', subtitle: '企業實習與職場體驗最新錄取榜', icon: '🏢', pos: { x: -20, y: 0, z: 1 }, radius: 6.1, restricted: true, colorHex: '#3b526b', standaloneUrl: '' }
+    ];
+
+    const ADMISSION_TIMELINE = [
+      { id: 't1', title: '繁星推薦報名與校內推薦', date: '3 月中旬', status: 'done', desc: '依高中在校成績百分比與經濟系檢定標準辦理推薦。' },
+      { id: 't2', title: '申請入學第一階段報名與篩選', date: '3 月下旬', status: 'active', desc: '採計學測科目篩選，通過後即可準備第二階段備審。' },
+      { id: 't3', title: '二階審查資料上傳與甄試面談', date: '5 月上旬～中旬', status: 'upcoming', desc: '呈現學習歷程自述、多元表現與對經濟議題的觀察。' },
+      { id: 't4', title: '分發入學志願選填與放榜', date: '7 月下旬～8 月中旬', status: 'upcoming', desc: '歡迎加入佛光大學應用經濟學系，正式登島啟航！' }
+    ];
+
+    const VILLAGE_STORIES = [
+      { tag: '跨海遠征記', cohort: '112級', author: '林學姐', title: '韓國姐妹校交換一學期：把經濟學理論帶進首爾日常', highlight: '申請校內交換獎學金，修習國際貿易全英語課程。', equip: '跨文化溝通力' },
+      { tag: '技能樹養成', cohort: '111級', author: '陳學長', title: '從零開始寫資料分析專題：用實證數據看台灣青年就業', highlight: '老師手把手指導統計軟體與經濟模型實作。', equip: '數據實證力' },
+      { tag: '公會大冒險', cohort: '113級', author: '張學姐', title: '擔任經濟營隊總召的熱血暑假：帶高中生玩出經濟思維', highlight: '設計模擬市場交易桌遊，從活動企劃學會團隊領導。', equip: '專案統籌力' },
+      { tag: '前哨戰紀錄', cohort: '111級', author: '王學長', title: '大三暑期金控分行實習開箱：課本上的貨幣銀行學全派上用場', highlight: '提前體驗理財顧問與數位金融作業流程。', equip: '職場即戰力' }
+    ];
+
+    const STUDY_NOTES_LIBRARY = [
+      { id: 'n1', cert: '信託業務人員', author: '馬範懿', studentId: '112175101', cohort: '112級', appOrSite: '金融研訓院 APP ＋ 藍色小本歷屆題庫', summary: '先把信託業法與稅制整理成對照表，近 5 屆考古題刷兩遍穩過！' },
+      { id: 'n2', cert: '永續發展基礎能力測驗', author: '陳品睿', studentId: '113175105', cohort: '113級', appOrSite: '證基會永續測驗指南網站', summary: '氣候變遷法規與範疇一二三碳盤查定義必考，搭配系上讀書會整理重點很有效率。' },
+      { id: 'n3', cert: '生成式AI', author: '陳家佩', studentId: '114175001', cohort: '114級', appOrSite: '資策會生成式 AI 認證官方題庫網站', summary: '著重 Prompt 技巧、生成式 AI 風險與企業導入應用，配合實際操作就能輕鬆理解。' }
+    ];
+
+    const PRACTICE_TEAMS = [
+      {
+        id: 'tm1', cert: '永續發展基礎能力測驗', examDate: '2026/12/20 應試梯次',
+        leader: '陳品睿', leaderId: '113175105', grade: '113級', location: '圖書館 3F 討論室・每週三 18:30',
+        max: 5, joined: false,
+        members: [
+          { name: '陳品睿', studentId: '113175105', grade: '113級', role: '團長', note: '已整理重點章節，歡迎一起衝刺！' },
+          { name: '邱宥睿', studentId: '113175101', grade: '113級', role: '成員', note: '想拿永續基礎證照，每週三準時到。' }
+        ]
+      },
+      {
+        id: 'tm2', cert: '信託業務人員', examDate: '2026/12/27 應試梯次',
+        leader: '馬範懿', leaderId: '112175101', grade: '112級', location: '雲起樓共學空間・每週四 19:00',
+        max: 4, joined: false,
+        members: [
+          { name: '馬範懿', studentId: '112175101', grade: '112級', role: '團長', note: '考前刷近五屆歷屆題庫＋法規口訣！' },
+          { name: '陳家佩', studentId: '114175001', grade: '114級', role: '成員', note: '準備考第一張銀行證照！' }
+        ]
+      }
+    ];
+
+    const INTERNSHIP_OFFERS = [
+      { name: '林宥廷', studentId: '111175108', cohort: '111級', field: '金融銀行', company: '國泰世華商業銀行', role: '個人金融實習生', period: '暑期實習' },
+      { name: '陳思妤', studentId: '111175114', cohort: '111級', field: '證券投信', company: '元大證券', role: '數位金融與投顧見習生', period: '學期實習' },
+      { name: '張凱翔', studentId: '112175109', cohort: '112級', field: '企業永續', company: '勤業眾信永續顧問團隊', role: 'ESG 碳盤查專案實習生', period: '暑期實習' },
+      { name: '黃雅婷', studentId: '112175118', cohort: '112級', field: '公部門與研究', company: '中華經濟研究院', role: '產業經濟研究助理', period: '學年實習' }
+    ];
+
+    /* =========================================================================
+       2. 應用程式狀態與工具函式
+       ========================================================================= */
+    const state = {
+      role: 'visitor',
+      studentLast3: '',
+      studentFullId: '',
+      studentProfile: null,
+      selectedIslandId: null,
+      reduceMotion: false,
+      checkedSteps: { t1: true, t2: false, t3: false, t4: false },
+      villageFilter: '全部',
+      campSubTab: 'team',
+      selectedCert: CERT_LIST[0].name,
+      expandedTeamIds: {},
+      selectedExamDate: '',
+      calendarMonth: new Date(2026, 11, 1),
+      calendarOpen: false,
+      peaksCohort: '全部',
+      offerFilter: '全部',
+      weatherMode: 'live',
+      weatherCondition: 'clear',
+      weatherTemp: '22°C',
+      weatherLabel: '晴時多雲'
+    };
+
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function formatDisplayName(fullName) {
+      if (!fullName) return '同學';
+      if (state.role === 'student') return fullName;
+      return fullName.charAt(0) + '○'.repeat(Math.max(1, fullName.length - 1));
+    }
+
+    function findStudentById(rawId) {
+      const clean = String(rawId || '').trim().toUpperCase();
+      return SHEET_STUDENTS.find(s => s.studentId.toUpperCase() === clean) || null;
+    }
+
+    function fillDemoStudentId(id) {
+      const input = document.getElementById('student-id-input');
+      if (input) {
+        input.value = id;
+        document.getElementById('student-id-error').classList.add('hidden');
+      }
+    }
+
+    /* =========================================================================
+       3. 礁溪即時氣象同步
+       ========================================================================= */
+    function applyWeatherVisuals(condition, tempText, descText) {
+      state.weatherCondition = condition;
+      document.getElementById('weather-temp').textContent = tempText;
+      document.getElementById('weather-desc').textContent = descText;
+      const iconEl = document.getElementById('weather-icon');
+      const body = document.body;
+
+      if (condition === 'rain') {
+        iconEl.textContent = '🌧️';
+        body.style.background = 'linear-gradient(180deg, #6b8799 0%, #98b1c2 60%, #c8c4b8 100%)';
+        if (scene) {
+          scene.fog.color.setHex(0x8ea6b8);
+          sunLight.intensity = 0.55;
+          ambientLight.intensity = 0.72;
+          windowMats.forEach(m => m.emissiveIntensity = 0.85);
+          if (rainSystem) rainSystem.visible = true;
+        }
+      } else if (condition === 'cloudy') {
+        iconEl.textContent = '⛅';
+        body.style.background = 'linear-gradient(180deg, #87b4cf 0%, #b5d4e6 60%, #dfd9c5 100%)';
+        if (scene) {
+          scene.fog.color.setHex(0xb5d4e6);
+          sunLight.intensity = 0.78;
+          ambientLight.intensity = 0.82;
+          windowMats.forEach(m => m.emissiveIntensity = 0.3);
+          if (rainSystem) rainSystem.visible = false;
+        }
+      } else {
+        iconEl.textContent = '☀️';
+        body.style.background = 'linear-gradient(180deg, #8ec3e0 0%, #bfe0f2 58%, #e6dfc8 100%)';
+        if (scene) {
+          scene.fog.color.setHex(0xbfe0f2);
+          sunLight.intensity = 0.98;
+          ambientLight.intensity = 0.84;
+          windowMats.forEach(m => m.emissiveIntensity = 0.15);
+          if (rainSystem) rainSystem.visible = false;
+        }
+      }
+    }
+
+    async function fetchJiaoxiWeather() {
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=24.8269&longitude=121.7728&current=temperature_2m,weather_code&timezone=Asia%2FTaipei');
+        const data = await res.json();
+        if (data && data.current) {
+          const temp = `${Math.round(data.current.temperature_2m)}°C`;
+          const code = Number(data.current.weather_code);
+          let cond = 'clear', label = '晴朗微風';
+          if ((code >= 51 && code <= 67) || (code >= 80 && code <= 99)) { cond = 'rain'; label = '蘭陽細雨'; }
+          else if (code >= 1 && code <= 48) { cond = 'cloudy'; label = '多雲山嵐'; }
+          state.weatherTemp = temp;
+          state.weatherLabel = label;
+          if (state.weatherMode === 'live') applyWeatherVisuals(cond, temp, `${label} (即時)`);
+        }
+      } catch (e) {
+        if (state.weatherMode === 'live') applyWeatherVisuals('clear', '22°C', '晴時多雲');
+      }
+    }
+
+    /* =========================================================================
+       4. Three.js 3D 宜蘭山海、龜山島、藍鵲、五座大小錯落島嶼與環狀吊橋
+       ========================================================================= */
+    let scene, camera, renderer, controls;
+    let sunLight, ambientLight, waterMesh, waterBasePos, smokeParticles = [], clouds = [], magpies = [], bridges = [], students = [], rainSystem;
+    let islandGroups = {}, clickableMeshes = [], windowMats = [];
+    let cameraAnim = { active: false, targetPos: new THREE.Vector3(), targetLook: new THREE.Vector3() };
+    const DEFAULT_CAM_POS = new THREE.Vector3(0, 29, 44);
+    const DEFAULT_LOOK_AT = new THREE.Vector3(2, 1, 0);
+
+    function createSeededRandom(seed) {
+      return function () {
+        let t = (seed += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function makeRoundedHill(rx, h, rz, colorHex, hasSnow = false) {
+      const group = new THREE.Group();
+      const geo = new THREE.SphereGeometry(1, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        const profile = Math.pow(Math.cos(y * Math.PI * 0.48), 0.72);
+        pos.setX(i, pos.getX(i) * profile * rx);
+        pos.setZ(i, pos.getZ(i) * profile * rz);
+        pos.setY(i, y * h);
+      }
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.85 }));
+      group.add(mesh);
+
+      if (hasSnow) {
+        const snowGeo = new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.24);
+        const sPos = snowGeo.attributes.position;
+        for (let i = 0; i < sPos.count; i++) {
+          const y = sPos.getY(i);
+          const profile = Math.pow(Math.cos(y * Math.PI * 0.48), 0.72);
+          sPos.setX(i, sPos.getX(i) * profile * rx * 1.01);
+          sPos.setZ(i, sPos.getZ(i) * profile * rz * 1.01);
+          sPos.setY(i, y * h + 0.06);
+        }
+        snowGeo.computeVertexNormals();
+        group.add(new THREE.Mesh(snowGeo, new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.65 })));
+      }
+      return group;
+    }
+
+    function makeWindow(w, h) {
+      const g = new THREE.Group();
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, 0.08), new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }));
+      const mat = new THREE.MeshStandardMaterial({ color: 0x93c5fd, emissive: 0xfde047, emissiveIntensity: 0.15, roughness: 0.25 });
+      windowMats.push(mat);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), mat);
+      const barV = new THREE.Mesh(new THREE.BoxGeometry(0.04, h, 0.12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+      const barH = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, 0.12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+      g.add(frame, glass, barV, barH);
+      return g;
+    }
+
+    // 精緻樹木生成器（多層圓潤樹冠與樹幹）
+    function makeStylizedTree(scale = 1, variant = 0) {
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11 * scale, 0.19 * scale, 1.05 * scale, 8),
+        new THREE.MeshStandardMaterial({ color: 0x7c4d2b, roughness: 0.9 })
+      );
+      trunk.position.y = 0.52 * scale;
+      tree.add(trunk);
+
+      const palette = variant === 0
+        ? [0x2d6a4f, 0x40916c, 0x52b788]
+        : [0x3d7a47, 0x5a9e4b, 0x74b85e];
+
+      if (variant === 0) {
+        for (let i = 0; i < 3; i++) {
+          const cone = new THREE.Mesh(
+            new THREE.ConeGeometry((0.88 - i * 0.2) * scale, 1.05 * scale, 10),
+            new THREE.MeshStandardMaterial({ color: palette[i], roughness: 0.8 })
+          );
+          cone.position.y = (1.15 + i * 0.55) * scale;
+          tree.add(cone);
+        }
+      } else {
+        const puffOffsets = [
+          { x: 0, y: 1.45, z: 0, r: 0.78, c: palette[0] },
+          { x: -0.35, y: 1.25, z: 0.25, r: 0.55, c: palette[1] },
+          { x: 0.36, y: 1.3, z: -0.2, r: 0.52, c: palette[2] }
+        ];
+        puffOffsets.forEach(p => {
+          const puff = new THREE.Mesh(
+            new THREE.SphereGeometry(p.r * scale, 12, 10),
+            new THREE.MeshStandardMaterial({ color: p.c, roughness: 0.82 })
+          );
+          puff.position.set(p.x * scale, p.y * scale, p.z * scale);
+          tree.add(puff);
+        });
+      }
+      return tree;
+    }
+
+    // 精緻台灣藍鵲模型（寶藍羽身、黑頭、紅嘴、長尾羽與白色尾端）
+    function makeFormosanBlueMagpie() {
+      const bird = new THREE.Group();
+      const blueMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.45 });
+      const darkWingMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 });
+      const blackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+      const redMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+      const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), blueMat);
+      body.scale.set(0.85, 0.82, 1.65);
+      bird.add(body);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), blackMat);
+      head.position.set(0, 0.08, 0.36);
+      bird.add(head);
+
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.24, 8), redMat);
+      beak.rotation.x = Math.PI * 0.5;
+      beak.position.set(0, 0.06, 0.58);
+      bird.add(beak);
+
+      const tailMain = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 1.25), blueMat);
+      tailMain.position.set(0, 0.02, -0.92);
+      const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.03, 0.38), whiteMat);
+      tailTip.position.set(0, 0.02, -1.68);
+      bird.add(tailMain, tailTip);
+
+      const lWing = new THREE.Group();
+      const lInner = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 0.34), darkWingMat);
+      lInner.position.set(-0.42, 0, 0.04);
+      const lTip = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.24), whiteMat);
+      lTip.position.set(-0.88, 0, -0.02);
+      lWing.add(lInner, lTip);
+
+      const rWing = new THREE.Group();
+      const rInner = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 0.34), darkWingMat);
+      rInner.position.set(0.42, 0, 0.04);
+      const rTip = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.24), whiteMat);
+      rTip.position.set(0.88, 0, -0.02);
+      rWing.add(rInner, rTip);
+
+      bird.add(lWing, rWing);
+      return { group: bird, lWing, rWing };
+    }
+
+    function initThreeScene() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0xbfe0f2, 0.0042);
+
+      camera = new THREE.PerspectiveCamera(42, Math.max(1, container.clientWidth) / Math.max(1, container.clientHeight), 0.1, 450);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(Math.max(1, container.clientWidth), Math.max(1, container.clientHeight));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.target.copy(DEFAULT_LOOK_AT);
+      controls.minDistance = 14;
+      controls.maxDistance = 88;
+      controls.maxPolarAngle = Math.PI * 0.46;
+
+      ambientLight = new THREE.AmbientLight(0xfffdf7, 0.84);
+      scene.add(ambientLight);
+      sunLight = new THREE.DirectionalLight(0xfff4dc, 0.98);
+      sunLight.position.set(28, 48, 26);
+      scene.add(sunLight);
+
+      // 海面
+      const waterGeo = new THREE.PlaneGeometry(340, 340, 48, 48);
+      waterGeo.rotateX(-Math.PI / 2);
+      waterBasePos = Float32Array.from(waterGeo.attributes.position.array);
+      waterMesh = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2b7a9b, roughness: 0.35, metalness: 0.08, flatShading: true }));
+      waterMesh.position.y = -1.2;
+      scene.add(waterMesh);
+
+      // 西側 U 形圓潤三層山脈（開口朝東對向龜山島）
+      const rand = createSeededRandom(20260515);
+      const layers = [
+        { r: 44, count: 12, hMin: 7, hMax: 12, color: 0x4f8f56, snow: false },
+        { r: 56, count: 14, hMin: 12, hMax: 18, color: 0x3b7a46, snow: false },
+        { r: 69, count: 16, hMin: 18, hMax: 26, color: 0x2e6338, snow: true }
+      ];
+      layers.forEach((l) => {
+        for (let i = 0; i < l.count; i++) {
+          const frac = i / Math.max(1, l.count - 1);
+          const theta = (0.36 + frac * 1.28) * Math.PI + (rand() - 0.5) * 0.08;
+          const r = l.r + (rand() - 0.5) * 4;
+          const rx = 6.5 + rand() * 5.5;
+          const rz = 6.0 + rand() * 5.0;
+          const h = l.hMin + rand() * (l.hMax - l.hMin);
+          const hill = makeRoundedHill(rx, h, rz, l.color, l.snow && h > 21);
+          hill.position.set(Math.cos(theta) * r - 6, -1.5, Math.sin(theta) * r);
+          scene.add(hill);
+        }
+      });
+
+      // 東側龜山島（側面正對 U 型山脈缺口並緩緩冒煙）
+      const guishan = new THREE.Group();
+      const shell = makeRoundedHill(5.5, 9.5, 11.5, 0x356e43, false);
+      shell.position.set(0, 0, -1.5);
+      const head = makeRoundedHill(4.0, 5.2, 4.5, 0x437d50, false);
+      head.position.set(0, 0, 10.5);
+      const tail = makeRoundedHill(2.8, 2.4, 5.5, 0x538c5e, false);
+      tail.position.set(0, 0, -13.0);
+      guishan.add(shell, head, tail);
+      guishan.position.set(70, -1.3, 0);
+      scene.add(guishan);
+
+      for (let i = 0; i < 6; i++) {
+        const puff = new THREE.Mesh(
+          new THREE.SphereGeometry(0.6 + i * 0.14, 10, 10),
+          new THREE.MeshStandardMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.48 })
+        );
+        scene.add(puff);
+        smokeParticles.push({ mesh: puff, offset: i / 6 });
+      }
+
+      // 五座獨立小島（大小錯落、海岸沙灘環、多層岩石與豐富植栽）
+      const shirtPalette = [0xe06d53, 0x3b82f6, 0xeab308, 0x10b981, 0x8b5cf6];
+      const treePlacements = [
+        [{ a: 2.3, d: 0.68, s: 0.9, v: 1 }, { a: -2.4, d: 0.65, s: 0.78, v: 0 }, { a: 0.5, d: 0.72, s: 0.82, v: 1 }],
+        [{ a: 2.2, d: 0.72, s: 1.15, v: 1 }, { a: 2.75, d: 0.66, s: 0.88, v: 0 }, { a: -2.1, d: 0.7, s: 1.05, v: 1 }, { a: -0.6, d: 0.74, s: 0.85, v: 0 }],
+        [{ a: 2.4, d: 0.7, s: 1.05, v: 0 }, { a: 1.85, d: 0.68, s: 0.85, v: 0 }, { a: -2.3, d: 0.7, s: 0.95, v: 1 }, { a: -0.8, d: 0.72, s: 0.8, v: 0 }],
+        [{ a: 2.1, d: 0.74, s: 1.25, v: 0 }, { a: 2.6, d: 0.72, s: 0.95, v: 0 }, { a: -2.2, d: 0.75, s: 1.15, v: 0 }, { a: -1.65, d: 0.7, s: 0.9, v: 1 }, { a: 0.4, d: 0.76, s: 1.0, v: 0 }],
+        [{ a: 2.25, d: 0.72, s: 1.1, v: 1 }, { a: -2.25, d: 0.72, s: 1.05, v: 1 }, { a: 0.85, d: 0.74, s: 0.9, v: 1 }, { a: -0.85, d: 0.74, s: 0.85, v: 0 }]
+      ];
+
+      ISLAND_CONFIGS.forEach((cfg, idx) => {
+        const root = new THREE.Group();
+        root.position.set(cfg.pos.x, 0, cfg.pos.z);
+
+        const lowerRock = new THREE.Mesh(
+          new THREE.CylinderGeometry(cfg.radius * 0.78, cfg.radius * 0.42, 1.6, 18),
+          new THREE.MeshStandardMaterial({ color: 0x7c5840, roughness: 0.92 })
+        );
+        lowerRock.position.y = -1.7;
+        lowerRock.userData.islandId = cfg.id;
+
+        const rock = new THREE.Mesh(
+          new THREE.CylinderGeometry(cfg.radius * 1.04, cfg.radius * 0.78, 1.5, 20),
+          new THREE.MeshStandardMaterial({ color: 0xa67c5b, roughness: 0.86 })
+        );
+        rock.position.y = -0.45;
+        rock.userData.islandId = cfg.id;
+
+        const beach = new THREE.Mesh(
+          new THREE.CylinderGeometry(cfg.radius * 1.06, cfg.radius * 1.04, 0.24, 20),
+          new THREE.MeshStandardMaterial({ color: 0xe6d5b8, roughness: 0.85 })
+        );
+        beach.position.y = 0.24;
+        beach.userData.islandId = cfg.id;
+
+        const grass = new THREE.Mesh(
+          new THREE.CylinderGeometry(cfg.radius * 1.01, cfg.radius * 1.03, 0.46, 20),
+          new THREE.MeshStandardMaterial({ color: 0x5a9e4b, roughness: 0.8 })
+        );
+        grass.position.y = 0.48;
+        grass.userData.islandId = cfg.id;
+
+        root.add(lowerRock, rock, beach, grass);
+        clickableMeshes.push(lowerRock, rock, beach, grass);
+
+        // 種植樹木與灌木
+        (treePlacements[idx] || []).forEach((tp, ti) => {
+          const tree = makeStylizedTree(tp.s, tp.v);
+          tree.position.set(Math.cos(tp.a) * cfg.radius * tp.d, 0.68, Math.sin(tp.a) * cfg.radius * tp.d);
+          tree.rotation.y = ti * 1.1;
+          root.add(tree);
+
+          const bush = new THREE.Mesh(
+            new THREE.SphereGeometry(0.32 * tp.s, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0x6ab058, roughness: 0.85 })
+          );
+          bush.scale.set(1.3, 0.75, 1.1);
+          bush.position.set(
+            Math.cos(tp.a + 0.22) * cfg.radius * (tp.d * 0.92),
+            0.76,
+            Math.sin(tp.a + 0.22) * cfg.radius * (tp.d * 0.92)
+          );
+          root.add(bush);
+        });
+
+        // 島嶼專屬精緻地標
+        if (cfg.id === 'portal') {
+          const stoneMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5 });
+          const trimMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.35 });
+          const step = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.24, 1.8), stoneMat); step.position.set(0, 0.78, 0);
+          const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 3.2, 0.65), stoneMat); p1.position.set(-1.35, 2.35, 0);
+          const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 3.2, 0.65), stoneMat); p2.position.set(1.35, 2.35, 0);
+          const top = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.62, 0.8), stoneMat); top.position.set(0, 4.1, 0);
+          const runeTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.86), trimMat); runeTop.position.set(0, 4.1, 0);
+          const core = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 3.1), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.45, transparent: true, opacity: 0.72, side: THREE.DoubleSide }));
+          core.position.set(0, 2.35, 0);
+          root.add(step, p1, p2, top, runeTop, core);
+        } else if (cfg.id === 'village') {
+          const wall = new THREE.Mesh(new THREE.BoxGeometry(3.1, 2.15, 2.6), new THREE.MeshStandardMaterial({ color: 0xfbf7ee, roughness: 0.75 }));
+          wall.position.set(0, 1.75, -0.35);
+          const roof = new THREE.Mesh(new THREE.ConeGeometry(2.48, 1.45, 4), new THREE.MeshStandardMaterial({ color: 0xc2593f, roughness: 0.75 }));
+          roof.position.set(0, 3.5, -0.35); roof.rotation.y = Math.PI * 0.25;
+          const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.95, 0.42), new THREE.MeshStandardMaterial({ color: 0x9c422c }));
+          chimney.position.set(0.85, 3.75, -0.65);
+          const porch = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.18, 0.55), new THREE.MeshStandardMaterial({ color: 0xd6cfc2 }));
+          porch.position.set(-0.5, 0.78, 1.15);
+          const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.25, 0.1), new THREE.MeshStandardMaterial({ color: 0x7c4a27 }));
+          door.position.set(-0.5, 1.4, 0.97);
+          const win1 = makeWindow(0.74, 0.74); win1.position.set(0.68, 1.85, 0.97);
+          const win2 = makeWindow(0.74, 0.74); win2.rotation.y = Math.PI * 0.5; win2.position.set(1.57, 1.85, -0.35);
+          const win3 = makeWindow(0.74, 0.74); win3.rotation.y = -Math.PI * 0.5; win3.position.set(-1.57, 1.85, -0.35);
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
+          pole.position.set(2.3, 2.05, 0.9);
+          const flag = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.56, 0.06), new THREE.MeshStandardMaterial({ color: 0x2b7a9b }));
+          flag.position.set(2.78, 3.1, 0.9);
+          root.add(wall, roof, chimney, porch, door, win1, win2, win3, pole, flag);
+        } else if (cfg.id === 'camp') {
+          const tent = new THREE.Mesh(new THREE.ConeGeometry(1.65, 2.0, 4), new THREE.MeshStandardMaterial({ color: 0xd97742, roughness: 0.8 }));
+          tent.position.set(-0.65, 1.68, -0.55); tent.rotation.y = Math.PI * 0.25;
+          const tentFlap = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.35, 3), new THREE.MeshStandardMaterial({ color: 0x7c3a1d }));
+          tentFlap.position.set(-0.15, 1.35, 0.25); tentFlap.rotation.y = Math.PI * 0.25;
+          for (let lg = 0; lg < 3; lg++) {
+            const log = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0x5c3a21 }));
+            log.position.set(1.15, 0.8, 0.95);
+            log.rotation.set(Math.PI * 0.45, lg * (Math.PI / 3), 0);
+            root.add(log);
+          }
+          const flame = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.85, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.45 }));
+          flame.position.set(1.15, 1.25, 0.95);
+          root.add(tent, tentFlap, flame);
+        } else if (cfg.id === 'peaks') {
+          const peakMain = makeRoundedHill(2.9, 4.9, 2.9, 0x4f6d7a, true);
+          peakMain.position.set(-0.2, 0.65, -0.35);
+          const peakSub = makeRoundedHill(1.9, 3.1, 1.9, 0x5c7c8a, true);
+          peakSub.position.set(1.75, 0.65, 0.65);
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+          pole.position.set(-0.2, 5.8, -0.35);
+          const pennant = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.46, 0.05), new THREE.MeshStandardMaterial({ color: 0xd9534f }));
+          pennant.position.set(0.22, 6.1, -0.35);
+          root.add(peakMain, peakSub, pole, pennant);
+        } else if (cfg.id === 'workplace') {
+          const tower = new THREE.Mesh(new THREE.BoxGeometry(2.85, 4.7, 2.5), new THREE.MeshStandardMaterial({ color: 0x4b6584, roughness: 0.6 }));
+          tower.position.set(0, 3.0, -0.25);
+          const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.16, 0.65), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+          canopy.position.set(0, 1.95, 1.2);
+          const door = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 0.1), new THREE.MeshStandardMaterial({ color: 0xbae6fd }));
+          door.position.set(0, 1.28, 1.02);
+          for (let r = 0; r < 3; r++) {
+            for (let c = -1; c <= 1; c++) {
+              const w = makeWindow(0.48, 0.52);
+              w.position.set(c * 0.78, 2.55 + r * 0.92, 1.02);
+              root.add(w);
+            }
+          }
+          const sign = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.78, 0.28), new THREE.MeshStandardMaterial({ color: 0xd97706 }));
+          sign.position.set(0, 5.85, -0.25);
+          root.add(tower, canopy, door, sign);
+        }
+
+        // 島上散步同學
+        const stuCount = cfg.radius >= 5.8 ? 4 : 3;
+        for (let s = 0; s < stuCount; s++) {
+          const stu = new THREE.Group();
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.62, 10), new THREE.MeshStandardMaterial({ color: shirtPalette[(idx + s) % shirtPalette.length] }));
+          body.position.y = 0.45;
+          const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), new THREE.MeshStandardMaterial({ color: 0xf6d3b8 }));
+          head.position.y = 0.96;
+          stu.add(body, head);
+          const ang = (s / stuCount) * Math.PI * 2;
+          stu.position.set(Math.cos(ang) * cfg.radius * 0.48, 0.7, Math.sin(ang) * cfg.radius * 0.48);
+          root.add(stu);
+          students.push({ mesh: stu, islandIdx: idx, angle: ang, speed: 0.45 + s * 0.1, onBridge: false, bridgeIdx: idx, progress: 0 });
+        }
+
+        scene.add(root);
+        islandGroups[cfg.id] = { group: root, phase: idx * 1.25, cfg };
+      });
+
+      // 環狀木造吊橋
+      for (let i = 0; i < ISLAND_CONFIGS.length; i++) {
+        const next = (i + 1) % ISLAND_CONFIGS.length;
+        const bridgeGroup = new THREE.Group();
+        const planks = [];
+        for (let p = 0; p < 14; p++) {
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 0.48), new THREE.MeshStandardMaterial({ color: 0xa47148 }));
+          bridgeGroup.add(plank);
+          planks.push(plank);
+        }
+        const ropeMat = new THREE.LineBasicMaterial({ color: 0x5c3a21 });
+        const ropeL = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 15 }, () => new THREE.Vector3())), ropeMat);
+        const ropeR = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 15 }, () => new THREE.Vector3())), ropeMat);
+        bridgeGroup.add(ropeL, ropeR);
+        scene.add(bridgeGroup);
+        bridges.push({ from: i, to: next, planks, ropeL, ropeR });
+      }
+
+      // 台灣藍鵲
+      for (let i = 0; i < 4; i++) {
+        const magpie = makeFormosanBlueMagpie();
+        scene.add(magpie.group);
+        magpies.push({ group: magpie.group, lWing: magpie.lWing, rWing: magpie.rWing, r: 19 + i * 5.5, y: 12.5 + i * 1.7, speed: 0.24 + i * 0.03, phase: i * 1.55 });
+      }
+
+      // 雲朵
+      for (let i = 0; i < 6; i++) {
+        const c = new THREE.Mesh(new THREE.SphereGeometry(2.2, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.78 }));
+        c.scale.set(1.8, 0.65, 1.1);
+        c.position.set(-40 + i * 16, 22 + (i % 3) * 2.5, -25 + (i % 2) * 30);
+        scene.add(c);
+        clouds.push(c);
+      }
+
+      // 雨滴粒子
+      const rainCount = 300;
+      const rainPos = new Float32Array(rainCount * 3);
+      for (let i = 0; i < rainCount; i++) {
+        rainPos[i * 3] = (Math.random() - 0.5) * 90;
+        rainPos[i * 3 + 1] = Math.random() * 35;
+        rainPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+      }
+      const rainGeo = new THREE.BufferGeometry();
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+      rainSystem = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xdbeafe, size: 0.28, transparent: true, opacity: 0.65 }));
+      rainSystem.visible = false;
+      scene.add(rainSystem);
+
+      // 3D 點擊偵測
+      const raycaster = new THREE.Raycaster();
+      const ptr = new THREE.Vector2();
+      let downPos = { x: 0, y: 0 };
+      renderer.domElement.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; });
+      renderer.domElement.addEventListener('pointerup', e => {
+        if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 7) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        ptr.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        ptr.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(ptr, camera);
+        const hits = raycaster.intersectObjects(clickableMeshes, true);
+        if (hits.length > 0 && hits[0].object.userData.islandId) {
+          focusOnIsland(hits[0].object.userData.islandId);
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (!renderer || !camera) return;
+        camera.aspect = Math.max(1, container.clientWidth) / Math.max(1, container.clientHeight);
+        camera.updateProjectionMatrix();
+        renderer.setSize(Math.max(1, container.clientWidth), Math.max(1, container.clientHeight));
+      });
+    }
+
+    function updateProjectedLabelsPosition() {
+      const layer = document.getElementById('labels-layer');
+      if (!layer || !camera) return;
+      const w = layer.clientWidth || window.innerWidth;
+      const h = layer.clientHeight || window.innerHeight;
+      ISLAND_CONFIGS.forEach((cfg) => {
+        const el = document.getElementById(`label-${cfg.id}`);
+        const grp = islandGroups[cfg.id];
+        if (!el || !grp) return;
+        const v = new THREE.Vector3(grp.group.position.x, grp.group.position.y + 6.4, grp.group.position.z);
+        v.project(camera);
+        if (v.z > 1) {
+          el.style.opacity = '0';
+        } else {
+          el.style.opacity = '1';
+          el.style.left = `${(v.x * 0.5 + 0.5) * w}px`;
+          el.style.top = `${(-v.y * 0.5 + 0.5) * h}px`;
+        }
+      });
+    }
+
+    let lastFrameTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+      const t = now * 0.001;
+
+      if (!state.reduceMotion) {
+        if (waterMesh && waterBasePos) {
+          const arr = waterMesh.geometry.attributes.position.array;
+          for (let i = 0; i < arr.length; i += 3) {
+            arr[i + 1] = waterBasePos[i + 1] + Math.sin(t * 1.1 + waterBasePos[i] * 0.1 + waterBasePos[i + 2] * 0.1) * 0.22;
+          }
+          waterMesh.geometry.attributes.position.needsUpdate = true;
+        }
+
+        Object.values(islandGroups).forEach((obj) => {
+          obj.group.position.y = Math.sin(t * 0.9 + obj.phase) * 0.28;
+        });
+
+        smokeParticles.forEach((p) => {
+          const cycle = (t * 0.16 + p.offset) % 1;
+          p.mesh.position.set(70 + cycle * 2.5, 8.2 + cycle * 9, -1.5 + Math.sin(t + p.offset * 5) * 0.8);
+          p.mesh.material.opacity = (1 - cycle) * 0.45;
+        });
+
+        clouds.forEach((c) => {
+          c.position.x += dt * 0.8;
+          if (c.position.x > 65) c.position.x = -65;
+        });
+
+        magpies.forEach((m) => {
+          const ang = t * m.speed + m.phase;
+          m.group.position.set(Math.cos(ang) * m.r, m.y + Math.sin(t * 1.5 + m.phase) * 0.6, Math.sin(ang) * m.r);
+          m.group.rotation.y = -ang;
+          const flap = Math.sin(t * 6.5 + m.phase) * 0.42;
+          m.lWing.rotation.z = flap;
+          m.rWing.rotation.z = -flap;
+        });
+
+        students.forEach((st, idx) => {
+          const cfg = ISLAND_CONFIGS[st.islandIdx];
+          if (!st.onBridge) {
+            st.angle += st.speed * dt;
+            const r = cfg.radius * 0.48;
+            st.mesh.position.set(Math.cos(st.angle) * r, 0.7 + Math.abs(Math.sin(t * 5 + idx)) * 0.08, Math.sin(st.angle) * r);
+            if (Math.sin(t * 0.35 + idx * 2.1) > 0.96) {
+              st.onBridge = true;
+              st.bridgeIdx = st.islandIdx;
+              st.progress = 0;
+              scene.add(st.mesh);
+            }
+          } else {
+            st.progress += dt * 0.28;
+            const aObj = islandGroups[ISLAND_CONFIGS[st.bridgeIdx].id];
+            const bObj = islandGroups[ISLAND_CONFIGS[(st.bridgeIdx + 1) % ISLAND_CONFIGS.length].id];
+            const pA = aObj.group.position;
+            const pB = bObj.group.position;
+            const u = new THREE.Vector3().subVectors(pB, pA).normalize();
+            const sPt = pA.clone().addScaledVector(u, aObj.cfg.radius * 0.96).add(new THREE.Vector3(0, 0.72, 0));
+            const ePt = pB.clone().addScaledVector(u, -bObj.cfg.radius * 0.96).add(new THREE.Vector3(0, 0.72, 0));
+            const pos = new THREE.Vector3().lerpVectors(sPt, ePt, Math.min(1, st.progress));
+            pos.y -= Math.sin(Math.min(1, st.progress) * Math.PI) * 0.65;
+            st.mesh.position.copy(pos);
+            if (st.progress >= 1) {
+              st.onBridge = false;
+              st.islandIdx = (st.bridgeIdx + 1) % ISLAND_CONFIGS.length;
+              islandGroups[ISLAND_CONFIGS[st.islandIdx].id].group.add(st.mesh);
+            }
+          }
+        });
+      }
+
+      // 更新環狀吊橋
+      bridges.forEach((br) => {
+        const aObj = islandGroups[ISLAND_CONFIGS[br.from].id];
+        const bObj = islandGroups[ISLAND_CONFIGS[br.to].id];
+        const pA = aObj.group.position;
+        const pB = bObj.group.position;
+        const dir = new THREE.Vector3().subVectors(pB, pA);
+        const u = dir.clone().normalize();
+        const sPt = pA.clone().addScaledVector(u, aObj.cfg.radius * 0.96).add(new THREE.Vector3(0, 0.72, 0));
+        const ePt = pB.clone().addScaledVector(u, -bObj.cfg.radius * 0.96).add(new THREE.Vector3(0, 0.72, 0));
+        const yaw = Math.atan2(u.x, u.z);
+        const sideVec = new THREE.Vector3(-u.z, 0, u.x).multiplyScalar(0.55);
+
+        br.planks.forEach((pk, pi) => {
+          const frac = (pi + 0.5) / br.planks.length;
+          const pos = new THREE.Vector3().lerpVectors(sPt, ePt, frac);
+          pos.y -= Math.sin(frac * Math.PI) * 0.65;
+          pk.position.copy(pos);
+          pk.rotation.y = yaw;
+        });
+
+        const ptsL = [], ptsR = [];
+        for (let k = 0; k <= 14; k++) {
+          const frac = k / 14;
+          const pt = new THREE.Vector3().lerpVectors(sPt, ePt, frac);
+          pt.y += 0.68 - Math.sin(frac * Math.PI) * 0.5;
+          ptsL.push(pt.clone().add(sideVec));
+          ptsR.push(pt.clone().sub(sideVec));
+        }
+        br.ropeL.geometry.setFromPoints(ptsL);
+        br.ropeR.geometry.setFromPoints(ptsR);
+      });
+
+      if (rainSystem && rainSystem.visible && !state.reduceMotion) {
+        const rArr = rainSystem.geometry.attributes.position.array;
+        for (let i = 1; i < rArr.length; i += 3) {
+          rArr[i] -= dt * 28;
+          if (rArr[i] < -1) rArr[i] = 34;
+        }
+        rainSystem.geometry.attributes.position.needsUpdate = true;
+      }
+
+      if (cameraAnim.active) {
+        camera.position.lerp(cameraAnim.targetPos, 0.08);
+        controls.target.lerp(cameraAnim.targetLook, 0.08);
+        if (camera.position.distanceTo(cameraAnim.targetPos) < 0.25) cameraAnim.active = false;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+      updateProjectedLabelsPosition();
+    }
+
+    /* =========================================================================
+       5. 導覽列、名牌與抽屜互動
+       ========================================================================= */
+    function renderLabelsAndNav() {
+      const layer = document.getElementById('labels-layer');
+      const nav = document.getElementById('bottom-nav-bar');
+      layer.innerHTML = '';
+      nav.innerHTML = '';
+
+      ISLAND_CONFIGS.forEach((cfg) => {
+        const isLocked = cfg.restricted && state.role !== 'student';
+
+        const label = document.createElement('div');
+        label.id = `label-${cfg.id}`;
+        label.className = 'island-label';
+        label.innerHTML = `
+          <div class="island-label-card ${isLocked ? 'locked' : ''}">
+            <span>${isLocked ? '🔒' : cfg.icon}</span>
+            <span class="text-xs font-black">${cfg.name}</span>
+          </div>
+          <div class="island-label-pin"></div>
+        `;
+        label.onclick = () => focusOnIsland(cfg.id);
+        layer.appendChild(label);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+          state.selectedIslandId === cfg.id
+            ? 'bg-[#2b5b78] text-white shadow-sm'
+            : isLocked
+              ? 'bg-slate-100 text-slate-500'
+              : 'bg-white hover:bg-[#e4f0f7] text-slate-700 border border-slate-200/80'
+        }`;
+        btn.innerHTML = `<span>${isLocked ? '🔒' : cfg.icon}</span><span>${cfg.name}</span>`;
+        btn.onclick = () => focusOnIsland(cfg.id);
+        nav.appendChild(btn);
+      });
+    }
+
+    function drawMiniIslandCanvas(islandId) {
+      const canvas = document.getElementById('mini-island-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.fillStyle = '#2b7a9b';
+      ctx.fillRect(0, 82, 128, 46);
+      ctx.fillStyle = '#a67c5b';
+      ctx.beginPath(); ctx.ellipse(64, 84, 42, 14, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a9e4b';
+      ctx.beginPath(); ctx.ellipse(64, 74, 44, 15, 0, 0, Math.PI * 2); ctx.fill();
+
+      const cfg = ISLAND_CONFIGS.find(i => i.id === islandId);
+      ctx.font = '32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(cfg ? cfg.icon : '🏝️', 64, 62);
+    }
+
+    function focusOnIsland(islandId) {
+      const cfg = ISLAND_CONFIGS.find(i => i.id === islandId);
+      if (!cfg) return;
+      state.selectedIslandId = islandId;
+      cameraAnim.targetPos.set(cfg.pos.x, 14, cfg.pos.z + 18);
+      cameraAnim.targetLook.set(cfg.pos.x + 2, 1.5, cfg.pos.z);
+      cameraAnim.active = true;
+      renderLabelsAndNav();
+      openIslandDrawer(islandId);
+    }
+
+    function closeIslandDrawer() {
+      state.selectedIslandId = null;
+      const drawer = document.getElementById('island-drawer');
+      drawer.classList.add('translate-y-full', 'md:translate-x-full');
+      cameraAnim.targetPos.copy(DEFAULT_CAM_POS);
+      cameraAnim.targetLook.copy(DEFAULT_LOOK_AT);
+      cameraAnim.active = true;
+      renderLabelsAndNav();
+    }
+
+    function openIslandDrawer(islandId) {
+      const cfg = ISLAND_CONFIGS.find(i => i.id === islandId);
+      if (!cfg) return;
+      const drawer = document.getElementById('island-drawer');
+      const body = document.getElementById('drawer-body');
+      const isLocked = cfg.restricted && state.role !== 'student';
+
+      document.getElementById('drawer-stage-badge').textContent = cfg.stage;
+      document.getElementById('drawer-title').textContent = `${cfg.icon} ${cfg.name}`;
+      document.getElementById('drawer-subtitle').textContent = cfg.subtitle;
+      document.getElementById('drawer-lock-badge').classList.toggle('hidden', !isLocked);
+      drawMiniIslandCanvas(islandId);
+
+      if (isLocked) {
+        body.innerHTML = `
+          <div class="bg-slate-900 text-white rounded-2xl p-6 text-center space-y-3">
+            <div class="text-4xl">🔒</div>
+            <h3 class="text-lg font-black">此島嶼僅開放在校生查閱</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              「${cfg.name}」包含在校生實習錄取名單與內部聯絡資訊，請驗證佛光大學學號後解鎖全島權限。
+            </p>
+            <button type="button" onclick="openRoleModal('student')"
+              class="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition">
+              輸入學號解鎖全部島嶼 ➔
+            </button>
+          </div>
+        `;
+      } else if (islandId === 'portal') {
+        const doneCount = Object.values(state.checkedSteps).filter(Boolean).length;
+        body.innerHTML = `
+          <div class="bg-[#e4f0f7] border border-[#c8dce8] rounded-2xl p-4 text-xs text-slate-700 leading-relaxed">
+            歡迎來到<strong>【登島傳送門】</strong>！勾選下方入學任務清單，掌握重要時程不漏接（已完成 ${doneCount}/${ADMISSION_TIMELINE.length} 項）。
+          </div>
+          <div class="space-y-2.5">
+            ${ADMISSION_TIMELINE.map(item => `
+              <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 bg-white cursor-pointer hover:border-[#2b7a9b] transition">
+                <input type="checkbox" ${state.checkedSteps[item.id] ? 'checked' : ''} onchange="togglePortalStep('${item.id}')" class="mt-1 w-4 h-4 accent-[#2b7a9b]" />
+                <div class="flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-black text-xs text-slate-800">${item.title}</span>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-[#2b7a9b]">${item.date}</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-1">${item.desc}</p>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+          <button type="button" onclick="focusOnIsland('village')"
+            class="w-full py-2.5 rounded-xl bg-[#3d7a47] hover:bg-[#31633a] text-white text-xs font-black transition">
+            偷看學長姐面試與學習心得 ➔ 直達冒險新手村
+          </button>
+        `;
+      } else if (islandId === 'village') {
+        const tags = ['全部', '跨海遠征記', '技能樹養成', '公會大冒險', '前哨戰紀錄'];
+        const list = state.villageFilter === '全部' ? VILLAGE_STORIES : VILLAGE_STORIES.filter(s => s.tag === state.villageFilter);
+        body.innerHTML = `
+          <div class="bg-[#eff7f1] border border-[#dceee0] rounded-2xl p-4 text-xs text-slate-700 leading-relaxed">
+            歡迎來到<strong>【冒險新手村】</strong>！瀏覽學長姐走過的海外交換、專題學習、系上活動與職場體驗故事。
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${tags.map(t => `
+              <button type="button" onclick="setVillageFilter('${t}')"
+                class="px-3 py-1 rounded-full text-xs font-bold transition ${state.villageFilter === t ? 'bg-[#3d7a47] text-white' : 'bg-white border border-slate-200 text-slate-600'}">
+                #${t}
+              </button>
+            `).join('')}
+          </div>
+          <div class="space-y-3">
+            ${list.map(st => `
+              <div class="p-4 rounded-2xl bg-white border border-slate-200 space-y-1.5">
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-[#3d7a47]">#${st.tag}</span>
+                  <span class="text-slate-400 font-bold">${st.cohort}・${st.author}</span>
+                </div>
+                <h4 class="font-black text-sm text-slate-800">${st.title}</h4>
+                <p class="text-xs text-slate-600">${st.highlight}</p>
+                <div class="pt-1 text-[11px] font-bold text-[#2b7a9b]">✨ 獲得裝備：${st.equip}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else if (islandId === 'camp') {
+        const isStudent = state.role === 'student';
+        const mentors = SHEET_STUDENTS.filter(s => s.certs.some(c => c.name === state.selectedCert));
+        body.innerHTML = `
+          <div class="bg-[#fdf6f0] border border-[#f5e1d0] rounded-2xl p-3.5 text-xs text-slate-700 leading-relaxed flex flex-col gap-2">
+            <div>
+              <strong>⛺ 證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。</strong>
+            </div>
+            ${isStudent
+              ? `<a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer"
+                  class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-[#9e4f27] font-black text-[11px] hover:bg-amber-50 transition">
+                  📊 開啟「經濟系證照考取」Google 試算表 ↗
+                </a>`
+              : `<button type="button" onclick="openRoleModal('student')"
+                  class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200/80 text-slate-600 font-bold text-[11px]">
+                  🔒 經濟系證照考取試算表（僅限在校生點按開啟）
+                </button>`
+            }
+          </div>
+
+          ${!isStudent ? `
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 flex items-center justify-between gap-2 text-[11px] text-amber-900">
+              <span>👀 目前為訪客唯讀瀏覽模式（無填寫與報名權限）</span>
+              <button type="button" onclick="openRoleModal('student')" class="font-black underline flex-shrink-0">驗證學號</button>
+            </div>
+          ` : ''}
+
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button type="button" onclick="setCampSubTab('team')"
+              class="py-1.5 rounded-lg text-xs font-black transition ${state.campSubTab === 'team' ? 'bg-white text-[#b5653b] shadow-sm' : 'text-slate-600'}">
+              🤝 共學組隊
+            </button>
+            <button type="button" onclick="setCampSubTab('notes')"
+              class="py-1.5 rounded-lg text-xs font-black transition ${state.campSubTab === 'notes' ? 'bg-white text-[#b5653b] shadow-sm' : 'text-slate-600'}">
+              📚 歷屆筆記
+            </button>
+          </div>
+
+          ${state.campSubTab === 'team' ? `
+            <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+              <div class="text-xs font-black text-slate-800">🎯 選擇目標證照，比對試算表已通過學長姐導師</div>
+              <select onchange="selectCampCert(this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
+                ${CERT_LIST.map(c => `<option value="${c.name}" ${state.selectedCert === c.name ? 'selected' : ''}>【${c.category}】${c.name}</option>`).join('')}
+              </select>
+              <div class="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl">
+                💡 備考攻略：${escapeHtml((CERT_LIST.find(c => c.name === state.selectedCert) || {}).tip || '')}
+              </div>
+              <div class="text-[11px] font-bold text-[#3d7a47]">
+                🏅 已考取學長姐（${mentors.length} 位）：
+                ${mentors.length ? mentors.map(m => `${formatDisplayName(m.name)} (${m.grade})`).join('、') : '尚無紀錄，歡迎搶先開團！'}
+              </div>
+            </div>
+
+            ${isStudent ? `
+              <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2 relative">
+                <div class="text-xs font-black text-slate-800">➕ 發起新共學讀書會（練功登記）</div>
+                <div class="flex gap-2">
+                  <button type="button" onclick="toggleCalendarPopover()"
+                    class="flex-1 text-left px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-700">
+                    📅 ${state.selectedExamDate ? `${state.selectedExamDate} 應試梯次` : '點選日曆選擇目標考試梯次'}
+                  </button>
+                  <input type="date" onchange="pickNativeExamDate(this.value)" aria-label="選擇考試日期"
+                    class="px-2 py-1.5 rounded-xl border border-slate-300 text-xs bg-white" />
+                </div>
+                ${state.calendarOpen ? renderCalendarPopover() : ''}
+                <input id="new-team-loc" type="text" placeholder="共學時間地點（例：圖書館 3F・每週二 18:30）"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs" />
+                <button type="button" onclick="createNewPracticeTeam()"
+                  class="w-full py-2 rounded-xl bg-[#b5653b] hover:bg-[#9c522c] text-white text-xs font-black transition">
+                  發布共學招募
+                </button>
+              </div>
+            ` : ''}
+
+            <div class="space-y-2.5">
+              <div class="text-xs font-black text-slate-700">🔥 開放招募中的證照讀書會（點擊卡片查看參與成員）</div>
+              ${PRACTICE_TEAMS.map(tm => {
+                const expanded = !!state.expandedTeamIds[tm.id];
+                return `
+                  <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                    <div onclick="toggleTeamExpand('${tm.id}')" class="p-3.5 cursor-pointer hover:bg-slate-50 transition">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-black text-xs text-slate-800">${escapeHtml(tm.cert)}</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${tm.members.length}/${tm.max} 人</span>
+                      </div>
+                      <div class="text-[11px] text-[#b5653b] font-bold mt-1">📅 ${escapeHtml(tm.examDate)}</div>
+                      <div class="text-[11px] text-slate-500 mt-0.5">📍 ${escapeHtml(tm.location)}・團長：${formatDisplayName(tm.leader)}</div>
+                      <div class="text-[11px] text-[#2b7a9b] font-bold mt-1.5">
+                        ${expanded ? '▲ 收合參與成員名單' : `▼ 點擊查看 ${tm.members.length} 位參與同學`}
+                      </div>
+                    </div>
+                    ${expanded ? `
+                      <div class="px-3.5 pb-3 pt-2 bg-slate-50 border-t border-slate-100 space-y-1.5">
+                        ${tm.members.map(mb => `
+                          <div class="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/80">
+                            <div>
+                              <span class="font-bold text-slate-800">${formatDisplayName(mb.name)}</span>
+                              <span class="text-slate-400 ml-1">${mb.grade}${isStudent ? ` · ${mb.studentId}` : ''}</span>
+                            </div>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${mb.role}</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ''}
+                    <div class="px-3.5 pb-3 pt-1">
+                      ${isStudent ? `
+                        <button type="button" onclick="joinPracticeTeam('${tm.id}')" ${tm.joined ? 'disabled' : ''}
+                          class="w-full py-2 rounded-xl text-xs font-black transition ${tm.joined ? 'bg-emerald-100 text-emerald-800' : 'bg-[#2b5b78] hover:bg-[#20465c] text-white'}">
+                          ${tm.joined ? '✅ 已加入此共學讀書會' : '+1 加入共學練功'}
+                        </button>
+                      ` : `
+                        <button type="button" onclick="openRoleModal('student')"
+                          class="w-full py-2 rounded-xl bg-slate-100 text-slate-500 text-xs font-bold">
+                          🔒 僅限在校生報名加入
+                        </button>
+                      `}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            ${isStudent ? `
+              <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                <div class="text-xs font-black text-slate-800">✍️ 線上投稿歷屆證照準備筆記</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input id="note-sid" type="text" value="${escapeHtml(state.studentFullId)}" placeholder="學號"
+                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-mono" />
+                  <input id="note-name" type="text" value="${escapeHtml(state.studentProfile ? state.studentProfile.name : '')}" placeholder="姓名"
+                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
+                </div>
+                <select id="note-cert" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
+                  ${CERT_LIST.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                </select>
+                <textarea id="note-tip" rows="2" placeholder="準備心得分享（例如：刷題方式、重點章節）"
+                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs"></textarea>
+                <input id="note-app" type="text" placeholder="推薦 APP 或網站（例如：金融研訓院 APP）"
+                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
+                <button type="button" onclick="submitNewStudyNote()"
+                  class="w-full py-2 rounded-xl bg-[#3d7a47] hover:bg-[#2f6138] text-white text-xs font-black transition">
+                  送出心得筆記
+                </button>
+              </div>
+            ` : ''}
+
+            <div class="space-y-2.5">
+              ${STUDY_NOTES_LIBRARY.map(nt => `
+                <div class="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(nt.cert)}</span>
+                    <span class="text-[11px] text-slate-400 font-bold">${nt.cohort} · ${formatDisplayName(nt.author)}${isStudent && nt.studentId ? ` (${nt.studentId})` : ''}</span>
+                  </div>
+                  <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(nt.summary)}</p>
+                  <div class="text-[11px] font-bold text-[#2b7a9b] bg-[#f2f6f9] px-2.5 py-1 rounded-lg">
+                    📱 推薦工具：${escapeHtml(nt.appOrSite)}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        `;
+      } else if (islandId === 'peaks') {
+        const isStudent = state.role === 'student';
+        const allPassRecords = [];
+        SHEET_STUDENTS.forEach(st => {
+          st.certs.forEach(c => {
+            allPassRecords.push({ grade: st.grade, studentId: st.studentId, name: st.name, certName: c.name, date: c.date });
+          });
+        });
+        allPassRecords.sort((a, b) => b.date.localeCompare(a.date));
+        const filteredRecords = state.peaksCohort === '全部' ? allPassRecords : allPassRecords.filter(r => r.grade === state.peaksCohort);
+
+        body.innerHTML = `
+          ${isStudent ? `
+            <a href="${PEAKS_STANDALONE_URL}" target="_blank" rel="noopener noreferrer"
+              class="block p-4 rounded-2xl bg-gradient-to-r from-[#2b7a9b] to-[#3d7a47] text-white shadow-md hover:opacity-95 transition">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-[11px] font-bold opacity-90">獨立專題網頁已解鎖</div>
+                  <div class="text-base font-black mt-0.5">🏔️ 前往完整版【百岳修煉島】網站 ↗</div>
+                  <div class="text-[11px] opacity-90 mt-1">查看完整歷屆證照統計與百岳攀登地圖</div>
+                </div>
+                <span class="text-2xl">🚀</span>
+              </div>
+            </a>
+          ` : `
+            <div class="p-4 rounded-2xl bg-slate-800 text-white space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black text-amber-300">🔒 完整版【百岳修煉島】網站僅限在校生開啟</span>
+              </div>
+              <p class="text-[11px] text-slate-300">訪客可先於下方瀏覽去識別化的最新登記通過名單；驗證學號後即可開啟獨立專頁連結。</p>
+              <button type="button" onclick="openRoleModal('student')"
+                class="w-full py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-black transition">
+                輸入學號解鎖前往 ➔
+              </button>
+            </div>
+          `}
+
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-black text-slate-800">📋 最新登記通過名單</h3>
+              <div class="flex gap-1">
+                ${['全部', '115級', '114級', '113級', '112級', '111級'].map(g => `
+                  <button type="button" onclick="setPeaksCohort('${g}')"
+                    class="px-2 py-0.5 rounded-md text-[11px] font-bold ${state.peaksCohort === g ? 'bg-[#4f6d7a] text-white' : 'bg-white border border-slate-200 text-slate-600'}">
+                    ${g}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              ${filteredRecords.map(rec => `
+                <div class="p-3 rounded-2xl bg-white border border-slate-200 flex items-center justify-between gap-2">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${rec.grade}</span>
+                      <span class="text-xs font-black text-slate-800">${formatDisplayName(rec.name)}</span>
+                      ${isStudent ? `<span class="text-[11px] font-mono text-slate-400">${rec.studentId}</span>` : ''}
+                    </div>
+                    <div class="text-xs font-bold text-[#2b7a9b] mt-1">🏅 ${escapeHtml(rec.certName)}</div>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <span class="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">${rec.date}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else if (islandId === 'workplace') {
+        const fields = ['全部', '金融銀行', '證券投信', '企業永續', '公部門與研究'];
+        const offers = state.offerFilter === '全部' ? INTERNSHIP_OFFERS : INTERNSHIP_OFFERS.filter(o => o.field === state.offerFilter);
+        body.innerHTML = `
+          <div class="bg-[#eff4f8] border border-[#d6e2ec] rounded-2xl p-3.5 text-xs text-slate-700">
+            歡迎登陸<strong>【職場副本島】</strong>！以下為本系在校生最新企業實習與職場體驗錄取榜單。
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${fields.map(f => `
+              <button type="button" onclick="setOfferFilter('${f}')"
+                class="px-3 py-1 rounded-full text-xs font-bold ${state.offerFilter === f ? 'bg-[#3b526b] text-white' : 'bg-white border border-slate-200 text-slate-600'}">
+                ${f}
+              </button>
+            `).join('')}
+          </div>
+          <div class="space-y-2.5">
+            ${offers.map(o => `
+              <div class="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-[#e4f0f7] text-[#2b5b78]">${o.field} · ${o.period}</span>
+                  <span class="text-[11px] font-mono text-slate-400">${o.cohort} · ${o.studentId}</span>
+                </div>
+                <div class="font-black text-sm text-slate-800">${o.company} — ${o.role}</div>
+                <div class="text-xs font-bold text-emerald-700">🎉 錄取同學：${o.name}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      drawer.classList.remove('translate-y-full', 'md:translate-x-full');
+    }
+
+    /* =========================================================================
+       6. 互動事件與日曆選擇器
+       ========================================================================= */
+    function renderCalendarPopover() {
+      const y = state.calendarMonth.getFullYear();
+      const m = state.calendarMonth.getMonth();
+      const firstDay = new Date(y, m, 1).getDay();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      let cells = '';
+      for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+      for (let d = 1; d <= daysInMonth; d++) {
+        const ds = `${y}/${String(m + 1).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+        const active = state.selectedExamDate === ds;
+        cells += `<button type="button" onclick="selectCalendarDay('${ds}')"
+          class="py-1 rounded-lg text-[11px] font-bold ${active ? 'bg-[#b5653b] text-white' : 'hover:bg-amber-50 text-slate-700'}">${d}</button>`;
+      }
+      return `
+        <div class="p-3 rounded-2xl bg-white border border-slate-300 shadow-lg space-y-2">
+          <div class="flex items-center justify-between text-xs font-black">
+            <button type="button" onclick="shiftCalendarMonth(-1)" class="px-2 py-0.5 rounded bg-slate-100">◀</button>
+            <span>${y} 年 ${m + 1} 月</span>
+            <button type="button" onclick="shiftCalendarMonth(1)" class="px-2 py-0.5 rounded bg-slate-100">▶</button>
+          </div>
+          <div class="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400">
+            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+          </div>
+          <div class="grid grid-cols-7 gap-1 text-center">${cells}</div>
+        </div>
+      `;
+    }
+
+    window.toggleCalendarPopover = () => { state.calendarOpen = !state.calendarOpen; openIslandDrawer('camp'); };
+    window.shiftCalendarMonth = (delta) => { state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + delta, 1); openIslandDrawer('camp'); };
+    window.selectCalendarDay = (ds) => { state.selectedExamDate = ds; state.calendarOpen = false; openIslandDrawer('camp'); };
+    window.pickNativeExamDate = (val) => { if (val) { state.selectedExamDate = val.replace(/-/g, '/'); state.calendarOpen = false; openIslandDrawer('camp'); } };
+    window.togglePortalStep = (id) => { state.checkedSteps[id] = !state.checkedSteps[id]; openIslandDrawer('portal'); };
+    window.setVillageFilter = (tag) => { state.villageFilter = tag; openIslandDrawer('village'); };
+    window.setCampSubTab = (tab) => { state.campSubTab = tab; openIslandDrawer('camp'); };
+    window.selectCampCert = (cert) => { state.selectedCert = cert; openIslandDrawer('camp'); };
+    window.toggleTeamExpand = (id) => { state.expandedTeamIds[id] = !state.expandedTeamIds[id]; openIslandDrawer('camp'); };
+    window.setPeaksCohort = (g) => { state.peaksCohort = g; openIslandDrawer('peaks'); };
+    window.setOfferFilter = (f) => { state.offerFilter = f; openIslandDrawer('workplace'); };
+
+    window.createNewPracticeTeam = () => {
+      if (state.role !== 'student') return;
+      const loc = document.getElementById('new-team-loc').value.trim();
+      if (!state.selectedExamDate || !loc) return;
+      const leaderName = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
+      const leaderGrade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      const newId = 'tm_' + Date.now();
+      PRACTICE_TEAMS.unshift({
+        id: newId, cert: state.selectedCert, examDate: `${state.selectedExamDate} 應試梯次`,
+        leader: leaderName, leaderId: state.studentFullId, grade: leaderGrade,
+        location: loc, max: 5, joined: true,
+        members: [{ name: leaderName, studentId: state.studentFullId, grade: leaderGrade, role: '團長', note: '歡迎一起組隊練功！' }]
+      });
+      state.expandedTeamIds[newId] = true;
+      state.selectedExamDate = '';
+      openIslandDrawer('camp');
+    };
+
+    window.joinPracticeTeam = (id) => {
+      if (state.role !== 'student') return;
+      const tm = PRACTICE_TEAMS.find(t => t.id === id);
+      if (!tm || tm.joined) return;
+      const name = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
+      const grade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      tm.joined = true;
+      tm.members.push({ name, studentId: state.studentFullId, grade, role: '成員', note: '+1 一起衝刺考照！' });
+      state.expandedTeamIds[id] = true;
+      openIslandDrawer('camp');
+    };
+
+    window.submitNewStudyNote = () => {
+      if (state.role !== 'student') return;
+      const sid = document.getElementById('note-sid').value.trim();
+      const name = document.getElementById('note-name').value.trim();
+      const cert = document.getElementById('note-cert').value;
+      const tip = document.getElementById('note-tip').value.trim();
+      const app = document.getElementById('note-app').value.trim();
+      if (!sid || !name || !tip) return;
+      const matched = findStudentById(sid);
+      STUDY_NOTES_LIBRARY.unshift({
+        id: 'n_' + Date.now(), cert, author: name, studentId: sid,
+        cohort: matched ? matched.grade : '在校生',
+        appOrSite: app || '系上共學講義', summary: tip
+      });
+      openIslandDrawer('camp');
+    };
+
+    /* =========================================================================
+       7. 身分切換彈窗與啟動流程
+       ========================================================================= */
+    let modalRoleChoice = 'visitor';
+
+    function openRoleModal(preselect) {
+      modalRoleChoice = preselect || state.role || 'visitor';
+      updateRoleModalUI();
+      document.getElementById('role-modal').classList.remove('hidden');
+    }
+
+    function updateRoleModalUI() {
+      const vBtn = document.getElementById('choice-visitor');
+      const sBtn = document.getElementById('choice-student');
+      const idSec = document.getElementById('student-id-section');
+      if (modalRoleChoice === 'student') {
+        sBtn.className = 'text-left p-4 rounded-2xl border-2 border-[#2b7a9b] bg-[#e4f0f7] transition focus:outline-none';
+        vBtn.className = 'text-left p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#3d7a47] transition focus:outline-none';
+        idSec.classList.remove('hidden');
+      } else {
+        vBtn.className = 'text-left p-4 rounded-2xl border-2 border-[#3d7a47] bg-[#eff7f1] transition focus:outline-none';
+        sBtn.className = 'text-left p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#2b7a9b] transition focus:outline-none';
+        idSec.classList.add('hidden');
+      }
+    }
+
+    function updateHudRoleBadge() {
+      const dot = document.getElementById('role-dot');
+      const txt = document.getElementById('role-badge-text');
+      if (state.role === 'student') {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-[#2b7a9b]';
+        txt.textContent = state.studentProfile
+          ? `${state.studentProfile.grade} ${state.studentProfile.name} (${state.studentLast3})`
+          : `在校生 (末三碼: ${state.studentLast3})`;
+      } else {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-[#3d7a47]';
+        txt.textContent = '訪客模式';
+      }
+    }
+
+    function bootApp() {
+      // 若同網域子頁面已驗證過在校生，自動同步回 3D 入口主頁
+      if (window.IslandAuth && window.IslandAuth.isStudent()) {
+        const s = window.IslandAuth.getSession();
+        state.role = 'student';
+        state.studentLast3 = s.last3;
+        if (s.displayName) {
+          state.studentProfile = { grade: s.grade, name: s.displayName };
+        }
+        document.getElementById('role-modal').classList.add('hidden');
+      }
+
+      initThreeScene();
+      renderLabelsAndNav();
+      updateHudRoleBadge();
+      fetchJiaoxiWeather();
+      requestAnimationFrame(animate);
+
+      document.getElementById('choice-visitor').onclick = () => { modalRoleChoice = 'visitor'; updateRoleModalUI(); };
+      document.getElementById('choice-student').onclick = () => { modalRoleChoice = 'student'; updateRoleModalUI(); };
+      document.getElementById('btn-switch-role').onclick = () => openRoleModal(state.role);
+      document.getElementById('btn-close-drawer').onclick = closeIslandDrawer;
+
+      document.getElementById('btn-confirm-role').onclick = () => {
+        if (modalRoleChoice === 'student') {
+          const raw = document.getElementById('student-id-input').value.trim();
+          if (!/^[A-Za-z0-9]{7,10}$/.test(raw)) {
+            document.getElementById('student-id-error').classList.remove('hidden');
+            return;
+          }
+          document.getElementById('student-id-error').classList.add('hidden');
+          state.role = 'student';
+          state.studentFullId = raw.toUpperCase();
+          state.studentLast3 = state.studentFullId.slice(-3);
+          state.studentProfile = findStudentById(state.studentFullId);
+          if (window.IslandAuth) window.IslandAuth.loginAsStudent(state.studentFullId);
+        } else {
+          state.role = 'visitor';
+          state.studentFullId = '';
+          state.studentLast3 = '';
+          state.studentProfile = null;
+          if (window.IslandAuth) window.IslandAuth.switchToVisitor();
+        }
+        try { localStorage.setItem(ROLE_STORAGE_KEY, state.role); } catch (e) {}
+        document.getElementById('role-modal').classList.add('hidden');
+        updateHudRoleBadge();
+        renderLabelsAndNav();
+        if (state.selectedIslandId) openIslandDrawer(state.selectedIslandId);
+      };
+
+      document.getElementById('btn-motion-toggle').onclick = () => {
+        state.reduceMotion = !state.reduceMotion;
+        document.body.classList.toggle('reduce-motion', state.reduceMotion);
+        document.getElementById('motion-icon').textContent = state.reduceMotion ? '⏸️' : '🍃';
+        document.getElementById('motion-text').textContent = state.reduceMotion ? '已減少動態' : '柔和動態';
+      };
+
+      document.getElementById('btn-weather-mode').onclick = () => {
+        const order = ['live', 'clear', 'rain'];
+        state.weatherMode = order[(order.indexOf(state.weatherMode) + 1) % order.length];
+        const btn = document.getElementById('btn-weather-mode');
+        if (state.weatherMode === 'live') {
+          btn.textContent = '即時';
+          fetchJiaoxiWeather();
+        } else if (state.weatherMode === 'clear') {
+          btn.textContent = '預覽晴天';
+          applyWeatherVisuals('clear', '24°C', '晴朗微風 (預覽)');
+        } else {
+          btn.textContent = '預覽細雨';
+          applyWeatherVisuals('rain', '19°C', '蘭陽細雨 (預覽)');
+        }
+      };
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && state.selectedIslandId) closeIslandDrawer();
+      });
+
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        state.reduceMotion = true;
+        document.body.classList.add('reduce-motion');
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootApp);
+    } else {
+      bootApp();
+    }
+  </script>
+</body>
+</html>
