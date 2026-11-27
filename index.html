@@ -1560,7 +1560,7 @@
                 💡 備考攻略：${escapeHtml((certOptions.find(c => c.name === state.selectedCert) || {}).tip || '')}
               </div>
               <div class="text-[11px] font-bold text-[#3d7a47]">
-                🏅 可請益已考取學長姐（${mentors.length} 位）：
+                🏅 已考取學長姐（${mentors.length} 位）：
                 ${mentorDisplayHtml}
               </div>
             </div>
@@ -1580,6 +1580,115 @@
                 <button type="button" onclick="createNewPracticeTeam()"
                   class="w-full py-2 rounded-xl bg-[#b5653b] hover:bg-[#9c522c] text-white text-xs font-black transition">
                   發布共學招募
+                </button>
+              </div>
+            ` : ''}
+
+            <div class="space-y-2.5">
+              <div class="text-xs font-black text-slate-700">🔥 開放招募中的證照讀書會（點擊卡片展開參與成員）</div>
+              ${PRACTICE_TEAMS.map(tm => {
+                const expanded = !!state.expandedTeamIds[tm.id];
+                const isOwner = isStudent && tm.leaderId && tm.leaderId.toUpperCase() === state.studentFullId.toUpperCase();
+                const isEditing = isOwner && state.editingTeamId === tm.id;
+                const isConfirmDel = isOwner && state.confirmDeleteTeamId === tm.id;
+                return `
+                  <div class="rounded-2xl bg-white border border-slate-200 p-3.5 space-y-2">
+                    <div onclick="toggleTeamExpand('${tm.id}')" class="cursor-pointer space-y-1">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-black text-xs text-slate-800">${escapeHtml(tm.cert)}</span>
+                        <div class="flex items-center gap-1.5">
+                          ${isOwner ? `
+                            <button type="button" onclick="event.stopPropagation(); startEditPracticeTeam('${tm.id}')"
+                              class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 text-[11px] font-bold">
+                              ✏️ 修改
+                            </button>
+                            <button type="button" onclick="event.stopPropagation(); askDeletePracticeTeam('${tm.id}')"
+                              class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
+                              🗑️ 刪除
+                            </button>
+                          ` : ''}
+                          <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${tm.members.length}/${tm.max} 人</span>
+                        </div>
+                      </div>
+                      <div class="text-[11px] font-bold text-[#b5653b]">📅 ${escapeHtml(tm.examDate)}</div>
+                      <div class="text-[11px] text-slate-600">📍 ${escapeHtml(tm.location)}・團長：${formatDisplayName(tm.leader)}（${tm.grade}）</div>
+                      <div class="text-[11px] font-bold text-[#2b7a9b]">${expanded ? '▲ 收合參與成員名單' : `▼ 點擊查看 ${tm.members.length} 位參與成員`}</div>
+                    </div>
+
+                    ${isConfirmDel ? `
+                      <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2 text-[11px]">
+                        <span class="font-bold text-rose-800">確定要刪除此共學讀書會嗎？</span>
+                        <div class="flex gap-1.5">
+                          <button type="button" onclick="cancelDeletePracticeTeam()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="confirmDeletePracticeTeam('${tm.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
+                        </div>
+                      </div>
+                    ` : ''}
+
+                    ${isEditing ? `
+                      <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                        <div class="text-[11px] font-black text-slate-800">✏️ 修改共學讀書會內容</div>
+                        <select id="edit-team-cert-${tm.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
+                          ${certOptions.map(c => `<option value="${escapeHtml(c.name)}" ${tm.cert === c.name ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+                        </select>
+                        <input id="edit-team-date-${tm.id}" type="text" value="${escapeHtml(tm.examDate)}" placeholder="目標考試梯次"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                        <input id="edit-team-loc-${tm.id}" type="text" value="${escapeHtml(tm.location)}" placeholder="共學時間地點"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                        <div class="flex gap-2">
+                          <button type="button" onclick="cancelEditPracticeTeam()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="saveEditPracticeTeam('${tm.id}')" class="flex-1 py-1.5 rounded-lg bg-[#b5653b] text-white text-xs font-black">儲存修改</button>
+                        </div>
+                      </div>
+                    ` : ''}
+
+                    ${expanded ? `
+                      <div class="bg-slate-50 rounded-xl p-2.5 space-y-1.5 border border-slate-200/80">
+                        ${tm.members.map(mb => `
+                          <div class="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-100">
+                            <div>
+                              <span class="font-bold text-slate-800">${formatDisplayName(mb.name)}</span>
+                              <span class="text-slate-400 ml-1">${mb.grade}${isStudent && mb.studentId ? ` · ${mb.studentId}` : ''}</span>
+                              <div class="text-slate-500 mt-0.5">${escapeHtml(mb.note)}</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${mb.role}</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ''}
+
+                    <button type="button" onclick="joinPracticeTeam('${tm.id}')" ${isStudent && !tm.joined ? '' : 'disabled'}
+                      class="w-full py-2 rounded-xl text-xs font-black transition ${
+                        !isStudent ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : tm.joined ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-[#2b5b78] hover:bg-[#20465c] text-white'
+                      }">
+                      ${!isStudent ? '🔒 驗證學號後可報名 +1' : tm.joined ? '✅ 已加入共學' : '+1 加入共學練功'}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            ${isStudent ? `
+              <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                <div class="text-xs font-black text-slate-800">✍️ 線上投稿歷屆證照準備筆記</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input id="note-sid" type="text" value="${escapeHtml(state.studentFullId)}" placeholder="學號"
+                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-mono" />
+                  <input id="note-name" type="text" value="${escapeHtml(state.studentProfile ? state.studentProfile.name : '')}" placeholder="姓名"
+                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
+                </div>
+                <select id="note-cert" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
+                  ${certOptions.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('')}
+                </select>
+                <textarea id="note-tip" rows="2" placeholder="準備心得分享（例如：刷題方式、重點章節）"
+                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs"></textarea>
+                <input id="note-app" type="text" placeholder="推薦 APP 或網站（例如：金融研訓院 APP）"
+                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
+                <button type="button" onclick="submitNewStudyNote()"
+                  class="w-full py-2 rounded-xl bg-[#3d7a47] hover:bg-[#2f6138] text-white text-xs font-black transition">
+                  送出心得筆記
                 </button>
               </div>
             ` : ''}
@@ -1640,44 +1749,6 @@
                   </div>
                 `;
               }).join('')}
-            </div>
-          ` : `
-            ${isStudent ? `
-              <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2">
-                <div class="text-xs font-black text-slate-800">✍️ 線上投稿歷屆證照準備筆記</div>
-                <div class="grid grid-cols-2 gap-2">
-                  <input id="note-sid" type="text" value="${escapeHtml(state.studentFullId)}" placeholder="學號"
-                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-mono" />
-                  <input id="note-name" type="text" value="${escapeHtml(state.studentProfile ? state.studentProfile.name : '')}" placeholder="姓名"
-                    class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
-                </div>
-                <select id="note-cert" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50">
-                  ${CERT_LIST.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
-                </select>
-                <textarea id="note-tip" rows="2" placeholder="準備心得分享（例如：刷題方式、重點章節）"
-                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs"></textarea>
-                <input id="note-app" type="text" placeholder="推薦 APP 或網站（例如：金融研訓院 APP）"
-                  class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs" />
-                <button type="button" onclick="submitNewStudyNote()"
-                  class="w-full py-2 rounded-xl bg-[#3d7a47] hover:bg-[#2f6138] text-white text-xs font-black transition">
-                  送出心得筆記
-                </button>
-              </div>
-            ` : ''}
-
-            <div class="space-y-2.5">
-              ${STUDY_NOTES_LIBRARY.map(nt => `
-                <div class="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black text-[#b5653b]">📘 ${escapeHtml(nt.cert)}</span>
-                    <span class="text-[11px] text-slate-400 font-bold">${nt.cohort} · ${formatDisplayName(nt.author)}${isStudent && nt.studentId ? ` (${nt.studentId})` : ''}</span>
-                  </div>
-                  <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(nt.summary)}</p>
-                  <div class="text-[11px] font-bold text-[#2b7a9b] bg-[#f2f6f9] px-2.5 py-1 rounded-lg">
-                    📱 推薦工具：${escapeHtml(nt.appOrSite)}
-                  </div>
-                </div>
-              `).join('')}
             </div>
           `}
         `;
