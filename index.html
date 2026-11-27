@@ -297,9 +297,26 @@
       { grade: '112級', studentId: '112175102', name: '劉昱辰', certs: [{ name: '證券商業務人員', date: '2025/01/11' }, { name: '期貨商業務員', date: '2024/09/21' }] },
       { grade: '113級', studentId: '113175101', name: '邱宥睿', certs: [{ name: '生成式AI', date: '2025/12/14' }, { name: '人身保險業務員', date: '2025/03/08' }] },
       { grade: '113級', studentId: '113175105', name: '陳品睿', certs: [{ name: '永續發展基礎能力測驗', date: '2026/01/18' }, { name: '銀行內控與內稽', date: '2025/09/13' }, { name: '信託業務人員', date: '2025/04/19' }] },
-      { grade: '114級', studentId: '114175001', name: '陳家佩', certs: [{ name: '生成式AI', date: '2026/06/14' }, { name: '人身保險業務員', date: '2026/03/21' }] },
-      { grade: '115級', studentId: '115175003', name: '陳亮宇', certs: [{ name: '生成式AI', date: '2026/11/15' }, { name: '金融市場常識與職業道德', date: '2026/10/25' }] }
+      { grade: '114級', studentId: '114175001', name: '陳家佩', certs: [{ name: '生成式AI', date: '2026/06/14' }, { name: '人身保險業務員', date: '2026/03/21' }] }
     ];
+    let liveSheetStudents = null;
+
+    async function fetchLiveSheetMentors() {
+      try {
+        const res = await fetch(`${DEFAULT_APPS_SCRIPT_URL}?action=getPassedMentors`);
+        const data = await res.json();
+        if (data && Array.isArray(data.students) && data.students.length > 0) {
+          liveSheetStudents = data.students;
+          if (state.selectedIslandId === 'camp' || state.selectedIslandId === 'peaks') {
+            openIslandDrawer(state.selectedIslandId);
+          }
+        }
+      } catch (e) {}
+    }
+
+    function getActiveStudentsList() {
+      return liveSheetStudents || SHEET_STUDENTS;
+    }
 
     const ISLAND_CONFIGS = [
       { id: 'portal', stage: '入學入口', name: '登島傳送門', subtitle: '招生重要日程與入學攻略時程', icon: '🌀', pos: { x: -5, y: 0, z: -24 }, radius: 4.5, restricted: false },
@@ -372,6 +389,8 @@
       campSubTab: 'team',
       selectedCert: CERT_LIST[0].name,
       expandedTeamIds: {},
+      editingTeamId: null,
+      confirmDeleteTeamId: null,
       selectedExamDate: '',
       calendarMonth: new Date(2026, 11, 1),
       calendarOpen: false,
@@ -1444,7 +1463,10 @@
         `;
       } else if (islandId === 'camp') {
         const isStudent = state.role === 'student';
-        const mentors = SHEET_STUDENTS.filter(s => s.certs.some(c => c.name === state.selectedCert));
+        const activeStudents = getActiveStudentsList();
+        const mentors = activeStudents.filter(s =>
+          s.certs.some(c => c.name === state.selectedCert || c.name.includes(state.selectedCert) || state.selectedCert.includes(c.name))
+        );
         body.innerHTML = `
           <div class="bg-[#fdf6f0] border border-[#f5e1d0] rounded-2xl p-3.5 text-xs text-slate-700 leading-relaxed flex flex-col gap-2">
             <div>
@@ -1508,13 +1530,11 @@
             ${isStudent ? `
               <div class="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2 relative">
                 <div class="text-xs font-black text-slate-800">➕ 發起新共學讀書會（練功登記）</div>
-                <div class="flex gap-2">
+                <div>
                   <button type="button" onclick="toggleCalendarPopover()"
-                    class="flex-1 text-left px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-700">
+                    class="w-full text-left px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-amber-50/40 text-xs font-bold text-slate-700 transition">
                     📅 ${state.selectedExamDate ? `${state.selectedExamDate} 應試梯次` : '點選日曆選擇目標考試梯次'}
                   </button>
-                  <input type="date" onchange="pickNativeExamDate(this.value)" aria-label="選擇考試日期"
-                    class="px-2 py-1.5 rounded-xl border border-slate-300 text-xs bg-white" />
                 </div>
                 ${state.calendarOpen ? renderCalendarPopover() : ''}
                 <input id="new-team-loc" type="text" placeholder="共學時間地點（例：圖書館 3F・每週二 18:30）"
@@ -1530,12 +1550,27 @@
               <div class="text-xs font-black text-slate-700">🔥 開放招募中的證照讀書會（點擊卡片查看參與成員）</div>
               ${PRACTICE_TEAMS.map(tm => {
                 const expanded = !!state.expandedTeamIds[tm.id];
+                const isOwner = isStudent && tm.leaderId && tm.leaderId.toUpperCase() === state.studentFullId.toUpperCase();
+                const isEditing = isOwner && state.editingTeamId === tm.id;
+                const isConfirmDel = isOwner && state.confirmDeleteTeamId === tm.id;
                 return `
                   <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                     <div onclick="toggleTeamExpand('${tm.id}')" class="p-3.5 cursor-pointer hover:bg-slate-50 transition">
                       <div class="flex items-center justify-between gap-2">
                         <span class="font-black text-xs text-slate-800">${escapeHtml(tm.cert)}</span>
-                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${tm.members.length}/${tm.max} 人</span>
+                        <div class="flex items-center gap-1.5">
+                          ${isOwner ? `
+                            <button type="button" onclick="event.stopPropagation(); startEditPracticeTeam('${tm.id}')"
+                              class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 text-[11px] font-bold">
+                              ✏️ 修改
+                            </button>
+                            <button type="button" onclick="event.stopPropagation(); askDeletePracticeTeam('${tm.id}')"
+                              class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
+                              🗑️ 刪除
+                            </button>
+                          ` : ''}
+                          <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${tm.members.length}/${tm.max} 人</span>
+                        </div>
                       </div>
                       <div class="text-[11px] text-[#b5653b] font-bold mt-1">📅 ${escapeHtml(tm.examDate)}</div>
                       <div class="text-[11px] text-slate-500 mt-0.5">📍 ${escapeHtml(tm.location)}・團長：${formatDisplayName(tm.leader)}</div>
@@ -1543,6 +1578,31 @@
                         ${expanded ? '▲ 收合參與成員名單' : `▼ 點擊查看 ${tm.members.length} 位參與同學`}
                       </div>
                     </div>
+                    ${isConfirmDel ? `
+                      <div class="px-3.5 py-2.5 bg-rose-50 border-t border-rose-200 flex items-center justify-between gap-2 text-[11px]">
+                        <span class="font-bold text-rose-800">確定要刪除此共學讀書會嗎？</span>
+                        <div class="flex gap-1.5">
+                          <button type="button" onclick="cancelDeletePracticeTeam()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="confirmDeletePracticeTeam('${tm.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
+                        </div>
+                      </div>
+                    ` : ''}
+                    ${isEditing ? `
+                      <div class="px-3.5 py-3 bg-amber-50/70 border-t border-amber-200 space-y-2">
+                        <div class="text-[11px] font-black text-slate-800">✏️ 修改讀書會內容</div>
+                        <select id="edit-team-cert-${tm.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold bg-white">
+                          ${CERT_LIST.map(c => `<option value="${c.name}" ${tm.cert === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+                        </select>
+                        <input id="edit-team-date-${tm.id}" type="text" value="${escapeHtml(tm.examDate)}" placeholder="目標考試梯次"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                        <input id="edit-team-loc-${tm.id}" type="text" value="${escapeHtml(tm.location)}" placeholder="共學時間地點"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                        <div class="flex gap-2">
+                          <button type="button" onclick="cancelEditPracticeTeam()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
+                          <button type="button" onclick="saveEditPracticeTeam('${tm.id}')" class="flex-1 py-1.5 rounded-lg bg-[#b5653b] text-white text-xs font-black">儲存修改</button>
+                        </div>
+                      </div>
+                    ` : ''}
                     ${expanded ? `
                       <div class="px-3.5 pb-3 pt-2 bg-slate-50 border-t border-slate-100 space-y-1.5">
                         ${tm.members.map(mb => `
@@ -1616,7 +1676,7 @@
       } else if (islandId === 'peaks') {
         const isStudent = state.role === 'student';
         const allPassRecords = [];
-        SHEET_STUDENTS.forEach(st => {
+        getActiveStudentsList().forEach(st => {
           st.certs.forEach(c => {
             allPassRecords.push({ grade: st.grade, studentId: st.studentId, name: st.name, certName: c.name, date: c.date });
           });
@@ -1749,12 +1809,57 @@
     window.toggleCalendarPopover = () => { state.calendarOpen = !state.calendarOpen; openIslandDrawer('camp'); };
     window.shiftCalendarMonth = (delta) => { state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + delta, 1); openIslandDrawer('camp'); };
     window.selectCalendarDay = (ds) => { state.selectedExamDate = ds; state.calendarOpen = false; openIslandDrawer('camp'); };
-    window.pickNativeExamDate = (val) => { if (val) { state.selectedExamDate = val.replace(/-/g, '/'); state.calendarOpen = false; openIslandDrawer('camp'); } };
     window.togglePortalStep = (id) => { state.checkedSteps[id] = !state.checkedSteps[id]; openIslandDrawer('portal'); };
     window.setVillageFilter = (tag) => { state.villageFilter = tag; openIslandDrawer('village'); };
     window.setCampSubTab = (tab) => { state.campSubTab = tab; openIslandDrawer('camp'); };
     window.selectCampCert = (cert) => { state.selectedCert = cert; openIslandDrawer('camp'); };
     window.toggleTeamExpand = (id) => { state.expandedTeamIds[id] = !state.expandedTeamIds[id]; openIslandDrawer('camp'); };
+    window.startEditPracticeTeam = (id) => { state.editingTeamId = id; state.confirmDeleteTeamId = null; openIslandDrawer('camp'); };
+    window.cancelEditPracticeTeam = () => { state.editingTeamId = null; openIslandDrawer('camp'); };
+    window.saveEditPracticeTeam = (id) => {
+      if (state.role !== 'student') return;
+      const tm = PRACTICE_TEAMS.find(t => t.id === id);
+      if (!tm) return;
+      const newCert = document.getElementById(`edit-team-cert-${id}`)?.value || tm.cert;
+      const newDate = (document.getElementById(`edit-team-date-${id}`)?.value || '').trim();
+      const newLoc = (document.getElementById(`edit-team-loc-${id}`)?.value || '').trim();
+      if (!newDate || !newLoc) return;
+      tm.cert = newCert;
+      tm.examDate = newDate;
+      tm.location = newLoc;
+      state.editingTeamId = null;
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '修改共學讀書會',
+        grade: tm.grade,
+        studentId: state.studentFullId,
+        name: tm.leader,
+        cert: tm.cert,
+        examDate: tm.examDate,
+        location: tm.location,
+        role: '團長'
+      });
+    };
+    window.askDeletePracticeTeam = (id) => { state.confirmDeleteTeamId = id; state.editingTeamId = null; openIslandDrawer('camp'); };
+    window.cancelDeletePracticeTeam = () => { state.confirmDeleteTeamId = null; openIslandDrawer('camp'); };
+    window.confirmDeletePracticeTeam = (id) => {
+      const idx = PRACTICE_TEAMS.findIndex(t => t.id === id);
+      if (idx === -1) return;
+      const removed = PRACTICE_TEAMS[idx];
+      PRACTICE_TEAMS.splice(idx, 1);
+      state.confirmDeleteTeamId = null;
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '刪除共學讀書會',
+        grade: removed.grade,
+        studentId: state.studentFullId,
+        name: removed.leader,
+        cert: removed.cert,
+        examDate: removed.examDate,
+        location: removed.location,
+        role: '團長'
+      });
+    };
     window.setPeaksCohort = (g) => { state.peaksCohort = g; openIslandDrawer('peaks'); };
     window.setOfferFilter = (f) => { state.offerFilter = f; openIslandDrawer('workplace'); };
     window.toggleScriptConfig = () => { state.scriptConfigOpen = !state.scriptConfigOpen; openIslandDrawer('camp'); };
@@ -1971,6 +2076,7 @@
       renderLabelsAndNav();
       updateHudRoleBadge();
       fetchJiaoxiWeather();
+      fetchLiveSheetMentors();
 
       document.getElementById('btn-motion-toggle').onclick = () => {
         state.reduceMotion = !state.reduceMotion;
