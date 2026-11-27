@@ -7,7 +7,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="auth.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -88,7 +87,7 @@
             <span class="text-[11px] font-black text-slate-700">宜蘭礁溪</span>
             <span id="weather-temp" class="text-xs font-black text-[#2b7a9b]">22°C</span>
           </div>
-          <div id="weather-desc" class="text-[10px] font-bold text-slate-500">同步氣象中...</div>
+          <div id="weather-desc" class="text-[10px] font-bold text-slate-500">晴時多雲</div>
         </div>
         <button id="btn-weather-mode" type="button"
           class="ml-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition">
@@ -226,8 +225,9 @@
 
   <script>
     /* =========================================================================
-       1. 核心資料配置（方案 B：入口主頁輕量化 + 外部獨立頁面連結）
+       1. 內建共用工作階段權限管理器（無需外部依賴即可獨立運作，同網域自動同步）
        ========================================================================= */
+    const SESSION_KEY = 'fgu_econ_island_session_v1';
     const ROLE_STORAGE_KEY = 'yilan_island_hub_role_b';
     const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/economics-cert/';
     const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
@@ -256,18 +256,18 @@
     ];
 
     const ISLAND_CONFIGS = [
-      { id: 'portal', stage: '入學入口', name: '登島傳送門', subtitle: '招生重要日程與入學攻略時程', icon: '🌀', pos: { x: -5, y: 0, z: -24 }, radius: 4.5, restricted: false, colorHex: '#2b7a9b', standaloneUrl: '' },
-      { id: 'village', stage: '第一站', name: '冒險新手村', subtitle: '學長姐交換、學習、活動與職場體驗分享', icon: '🏡', pos: { x: 16, y: 0, z: -13 }, radius: 5.8, restricted: false, colorHex: '#3d7a47', standaloneUrl: '' },
-      { id: 'camp', stage: '第二站', name: '揪團練功', subtitle: '證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。', icon: '⛺', pos: { x: 20, y: 0, z: 12 }, radius: 5.1, restricted: false, colorHex: '#b5653b', standaloneUrl: 'camp.html' },
-      { id: 'peaks', stage: '第三站', name: '百岳修煉島', subtitle: '最新登記通過名單與獨立版修煉島入口', icon: '🏔️', pos: { x: -3, y: 0, z: 24 }, radius: 6.7, restricted: false, colorHex: '#4f6d7a', standaloneUrl: PEAKS_STANDALONE_URL },
-      { id: 'workplace', stage: '第四站', name: '職場副本島', subtitle: '企業實習與職場體驗最新錄取榜', icon: '🏢', pos: { x: -20, y: 0, z: 1 }, radius: 6.1, restricted: true, colorHex: '#3b526b', standaloneUrl: '' }
+      { id: 'portal', stage: '入學入口', name: '登島傳送門', subtitle: '招生重要日程與入學攻略時程', icon: '🌀', pos: { x: -5, y: 0, z: -24 }, radius: 4.5, restricted: false },
+      { id: 'village', stage: '第一站', name: '冒險新手村', subtitle: '學長姐交換、學習、活動與職場體驗分享', icon: '🏡', pos: { x: 16, y: 0, z: -13 }, radius: 5.8, restricted: false },
+      { id: 'camp', stage: '第二站', name: '揪團練功', subtitle: '證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。', icon: '⛺', pos: { x: 20, y: 0, z: 12 }, radius: 5.1, restricted: false },
+      { id: 'peaks', stage: '第三站', name: '百岳修煉島', subtitle: '最新登記通過名單與獨立版修煉島入口', icon: '🏔️', pos: { x: -3, y: 0, z: 24 }, radius: 6.7, restricted: false },
+      { id: 'workplace', stage: '第四站', name: '職場副本島', subtitle: '企業實習與職場體驗最新錄取榜', icon: '🏢', pos: { x: -20, y: 0, z: 1 }, radius: 6.1, restricted: true }
     ];
 
     const ADMISSION_TIMELINE = [
-      { id: 't1', title: '繁星推薦報名與校內推薦', date: '3 月中旬', status: 'done', desc: '依高中在校成績百分比與經濟系檢定標準辦理推薦。' },
-      { id: 't2', title: '申請入學第一階段報名與篩選', date: '3 月下旬', status: 'active', desc: '採計學測科目篩選，通過後即可準備第二階段備審。' },
-      { id: 't3', title: '二階審查資料上傳與甄試面談', date: '5 月上旬～中旬', status: 'upcoming', desc: '呈現學習歷程自述、多元表現與對經濟議題的觀察。' },
-      { id: 't4', title: '分發入學志願選填與放榜', date: '7 月下旬～8 月中旬', status: 'upcoming', desc: '歡迎加入佛光大學應用經濟學系，正式登島啟航！' }
+      { id: 't1', title: '繁星推薦報名與校內推薦', date: '3 月中旬', desc: '依高中在校成績百分比與經濟系檢定標準辦理推薦。' },
+      { id: 't2', title: '申請入學第一階段報名與篩選', date: '3 月下旬', desc: '採計學測科目篩選，通過後即可準備第二階段備審。' },
+      { id: 't3', title: '二階審查資料上傳與甄試面談', date: '5 月上旬～中旬', desc: '呈現學習歷程自述、多元表現與對經濟議題的觀察。' },
+      { id: 't4', title: '分發入學志願選填與放榜', date: '7 月下旬～8 月中旬', desc: '歡迎加入佛光大學應用經濟學系，正式登島啟航！' }
     ];
 
     const VILLAGE_STORIES = [
@@ -442,12 +442,114 @@
     }
 
     function makeRoundedHill(rx, h, rz, colorHex, hasSnow = false) {
-// ... existing code ... -->
+      const grp = new THREE.Group();
+      const geo = new THREE.SphereGeometry(1, 28, 22, 0, Math.PI * 2, 0, Math.PI * 0.56);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const vz = pos.getZ(i);
+        const domeFactor = Math.pow(Math.max(0, vy), 0.72);
+        const ridgeWave = 1 + 0.14 * Math.sin(vx * 3.1 + vz * 2.2) + 0.08 * Math.cos(vz * 4.0);
+        pos.setXYZ(i, vx * rx * ridgeWave, domeFactor * h, vz * rz * ridgeWave);
+      }
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.88 }));
+      grp.add(mesh);
+
+      if (hasSnow) {
+        const snowGeo = new THREE.SphereGeometry(1, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.24);
+        snowGeo.scale(rx * 0.44, h * 0.34, rz * 0.44);
+        const snow = new THREE.Mesh(snowGeo, new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.55 }));
+        snow.position.y = h * 0.67;
+        grp.add(snow);
+      }
+      return grp;
+    }
+
+    function makeTree(variant, scale = 1) {
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11 * scale, 0.17 * scale, 0.9 * scale, 8),
+        new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.9 })
+      );
+      trunk.position.y = 0.45 * scale;
+      tree.add(trunk);
+
+      if (variant === 'pine') {
+        const colors = [0x2d6a4f, 0x40916c, 0x52b788];
+        for (let t = 0; t < 3; t++) {
+          const cone = new THREE.Mesh(
+            new THREE.ConeGeometry((0.78 - t * 0.17) * scale, (1.05 - t * 0.15) * scale, 10),
+            new THREE.MeshStandardMaterial({ color: colors[t], roughness: 0.8 })
+          );
+          cone.position.y = (1.1 + t * 0.55) * scale;
+          tree.add(cone);
+        }
+      } else {
+        const leafColors = [0x4c956c, 0x6a994e, 0x80b918];
+        const offsets = [
+          [0, 1.35, 0, 0.72],
+          [-0.38, 1.12, 0.24, 0.52],
+          [0.36, 1.15, -0.22, 0.54]
+        ];
+        offsets.forEach(([ox, oy, oz, r], i) => {
+          const puff = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(r * scale, 1),
+            new THREE.MeshStandardMaterial({ color: leafColors[i % leafColors.length], roughness: 0.82 })
+          );
+          puff.position.set(ox * scale, oy * scale, oz * scale);
+          tree.add(puff);
+        });
+      }
+      return tree;
+    }
+
+    function makeFormosanBlueMagpie() {
+      const bird = new THREE.Group();
+      const blueMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 });
+      const blackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+      const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+      const redMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), blueMat);
+      body.scale.set(0.95, 0.85, 1.55);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), blackMat);
+      head.position.set(0, 0.14, 0.42);
+
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.24, 8), redMat);
+      beak.rotation.x = Math.PI * 0.5;
+      beak.position.set(0, 0.12, 0.65);
+
+      const tailBlue = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 1.15), blueMat);
+      tailBlue.position.set(0, -0.02, -0.85);
+      tailBlue.rotation.x = -0.1;
+
+      const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.42), whiteMat);
+      tailTip.position.set(0, -0.06, -1.55);
+      tailTip.rotation.x = -0.1;
+
+      bird.add(body, head, beak, tailBlue, tailTip);
+
+      const lWing = new THREE.Group();
+      const lMesh = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.04, 0.36), blueMat);
+      lMesh.position.x = -0.38;
+      const lTip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.32), whiteMat);
+      lTip.position.x = -0.78;
+      lWing.add(lMesh, lTip);
+
+      const rWing = new THREE.Group();
+      const rMesh = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.04, 0.36), blueMat);
+      rMesh.position.x = 0.38;
+      const rTip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.32), whiteMat);
+      rTip.position.x = 0.78;
+      rWing.add(rMesh, rTip);
+
       bird.add(lWing, rWing);
       return { group: bird, lWing, rWing };
     }
 
-    // 精緻男女生角色生成器（含髮型、五官表情、雙手雙腳與擺動關節）
     function makeStudentCharacter(shirtColor, isFemale, hairColor) {
       const stu = new THREE.Group();
       const skinMat = new THREE.MeshStandardMaterial({ color: 0xf6d3b8, roughness: 0.65 });
@@ -456,7 +558,6 @@
       const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.75 });
       const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
 
-      // 雙腳（左腳、右腳樞紐）
       const leftLeg = new THREE.Group();
       leftLeg.position.set(-0.09, 0.34, 0);
       const lLegMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.28, 8), skinMat);
@@ -473,17 +574,14 @@
       rShoe.position.set(0, -0.3, 0.03);
       rightLeg.add(rLegMesh, rShoe);
 
-      // 下身（女生百褶裙 / 男生長褲腰身）
       const lowerBody = isFemale
         ? new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.26, 12), bottomMat)
         : new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.22, 12), bottomMat);
       lowerBody.position.y = 0.42;
 
-      // 上衣軀幹
       const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.36, 12), shirtMat);
       torso.position.y = 0.66;
 
-      // 雙手（左手、右手樞紐）
       const leftArm = new THREE.Group();
       leftArm.position.set(-0.22, 0.8, 0);
       const lSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.14, 8), shirtMat);
@@ -500,13 +598,11 @@
       rHand.position.y = -0.21;
       rightArm.add(rSleeve, rHand);
 
-      // 頭部與五官表情
       const headGroup = new THREE.Group();
       headGroup.position.y = 1.04;
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), skinMat);
       headGroup.add(head);
 
-      // 眼睛、腮紅與微笑嘴巴（朝向 +Z 前方）
       const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
       const blushMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.7 });
       const mouthMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.5 });
@@ -528,7 +624,6 @@
       smile.position.set(0, -0.045, 0.208);
       headGroup.add(eyeL, eyeR, cheekL, cheekR, smile);
 
-      // 髮型（女生：及肩長髮＋髮飾/馬尾；男生：俐落短髮＋瀏海）
       const hairCap = new THREE.Mesh(
         new THREE.SphereGeometry(0.232, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58),
         hairMat
@@ -562,6 +657,8 @@
 
     function initThreeScene() {
       const container = document.getElementById('canvas-container');
+      if (!container || typeof THREE === 'undefined') return;
+
       scene = new THREE.Scene();
       scene.fog = new THREE.FogExp2(0xbfe0f2, 0.0042);
 
@@ -575,13 +672,15 @@
       container.innerHTML = '';
       container.appendChild(renderer.domElement);
 
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.06;
-      controls.target.copy(DEFAULT_LOOK_AT);
-      controls.minDistance = 14;
-      controls.maxDistance = 88;
-      controls.maxPolarAngle = Math.PI * 0.46;
+      if (THREE.OrbitControls) {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.target.copy(DEFAULT_LOOK_AT);
+        controls.minDistance = 14;
+        controls.maxDistance = 88;
+        controls.maxPolarAngle = Math.PI * 0.46;
+      }
 
       ambientLight = new THREE.AmbientLight(0xfffdf7, 0.84);
       scene.add(ambientLight);
@@ -589,7 +688,7 @@
       sunLight.position.set(28, 48, 26);
       scene.add(sunLight);
 
-      // 海面（不透明湛藍海水，確保水下島基座完全隱藏、看不到島底部）
+      // 不透明湛藍海面（確保水下島基座完全隱藏、看不到島底部）
       const waterGeo = new THREE.PlaneGeometry(340, 340, 56, 56);
       waterGeo.rotateX(-Math.PI / 2);
       waterBasePos = Float32Array.from(waterGeo.attributes.position.array);
@@ -603,14 +702,41 @@
       scene.add(waterMesh);
 
       // 西側 U 形圓潤三層山脈（緩坡寬闊山脊 + 錯落有致的自然高低起伏）
-// ... existing code ... -->
-      const tail = makeRoundedHill(2.8, 2.4, 5.5, 0x538c5e, false);
+      const randMtn = createSeededRandom(202611);
+      const mtnLayers = [
+        { rad: 74, baseH: 20, rxBase: 19.5, rzBase: 17.5, color: 0x3b634b, count: 10 },
+        { rad: 61, baseH: 13.5, rxBase: 16.5, rzBase: 14.5, color: 0x4b7d58, count: 12 },
+        { rad: 50, baseH: 8.5, rxBase: 14.0, rzBase: 12.5, color: 0x629666, count: 14 }
+      ];
+      mtnLayers.forEach((ly, li) => {
+        for (let i = 0; i < ly.count; i++) {
+          const baseT = i / (ly.count - 1);
+          const jitterT = Math.min(1, Math.max(0, baseT + (randMtn() - 0.5) * 0.065));
+          const ang = Math.PI * 0.54 + jitterT * Math.PI * 0.92;
+          const radJitter = ly.rad + (randMtn() - 0.5) * 6.5;
+          const ridgeRipple = 0.68 + 0.48 * Math.abs(Math.sin(i * 2.15 + li * 1.4)) + randMtn() * 0.36;
+          const h = ly.baseH * ridgeRipple;
+          const rx = ly.rxBase * (0.85 + randMtn() * 0.42);
+          const rz = ly.rzBase * (0.85 + randMtn() * 0.42);
+
+          const hill = makeRoundedHill(rx, h, rz, ly.color, li === 0 && h > 23.5);
+          hill.position.set(Math.cos(ang) * radJitter + 12, -1.6, Math.sin(ang) * radJitter);
+          hill.rotation.y = randMtn() * Math.PI * 2;
+          scene.add(hill);
+        }
+      });
+
+      // 龜山島（側面正對山谷缺口）
+      const guishan = new THREE.Group();
+      const shell = makeRoundedHill(7.8, 7.6, 12.2, 0x3d7349, false);
+      const head = makeRoundedHill(4.6, 5.2, 5.2, 0x4b8556, false);
+      head.position.set(0, 0, 11.4);
+      const tail = makeRoundedHill(3.0, 2.4, 5.8, 0x538c5e, false);
       tail.position.set(0, 0, -13.0);
       guishan.add(shell, head, tail);
       guishan.position.set(70, -1.3, 0);
       scene.add(guishan);
 
-      // 龜山島周圍海浪白沫環
       const gsWave1 = new THREE.Mesh(
         new THREE.RingGeometry(11.8, 13.0, 32),
         new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.62, side: THREE.DoubleSide })
@@ -619,20 +745,54 @@
       gsWave1.scale.set(0.68, 1.28, 1);
       gsWave1.position.set(70, -0.18, 0);
       scene.add(gsWave1);
-      shoreWaves.push({ mesh: gsWave1, baseScaleX: 0.68, baseScaleY: 1.28, phase: 0.7 });
+      shoreWaves.push({ mesh: gsWave1, baseScaleX: 0.68, baseScaleY: 1.28, phase: 0.7, isOuter: false });
 
       for (let i = 0; i < 6; i++) {
-// ... existing code ... -->
-      // 五座獨立小島（深埋海床基座看不到底部 + 海岸海浪白沫環 + 豐富植栽與男女生角色）
+        const sp = new THREE.Mesh(
+          new THREE.SphereGeometry(0.65 + i * 0.14, 10, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.42 })
+        );
+        smokeParticles.push({ mesh: sp, offset: i / 6 });
+        scene.add(sp);
+      }
+
+      // 雲朵與台灣藍鵲
+      for (let c = 0; c < 6; c++) {
+        const cg = new THREE.Group();
+        for (let b = 0; b < 3; b++) {
+          const puff = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(1.6 + (b % 2) * 0.5, 1),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 })
+          );
+          puff.position.set((b - 1) * 1.4, (b % 2) * 0.3, 0);
+          cg.add(puff);
+        }
+        cg.position.set(-40 + c * 18, 22 + (c % 3) * 3, -24 + (c % 2) * 32);
+        clouds.push(cg);
+        scene.add(cg);
+      }
+
+      for (let m = 0; m < 4; m++) {
+        const magpieObj = makeFormosanBlueMagpie();
+        magpies.push({ ...magpieObj, r: 17 + m * 5, y: 12 + m * 1.6, speed: 0.32 + m * 0.04, phase: m * 1.6 });
+        scene.add(magpieObj.group);
+      }
+
+      // 五座獨立小島（深埋海床基座看不到底部 + 海岸海浪白沫環 + 樹木植栽 + 男女生角色）
       const shirtPalette = [0xe06d53, 0x3b82f6, 0xeab308, 0x10b981, 0x8b5cf6];
       const hairPalette = [0x1e293b, 0x4a2c18, 0x2c1e16, 0x5c3a21];
       const treePlacements = [
-// ... existing code ... -->
+        [[-2.5, -1.6, 'pine', 0.85], [2.4, -1.4, 'broad', 0.8], [-2.1, 2.0, 'broad', 0.75], [2.2, 1.9, 'pine', 0.8]],
+        [[-3.3, -2.1, 'broad', 1.0], [3.2, -2.3, 'pine', 1.05], [-3.5, 1.8, 'pine', 0.95], [3.1, 2.2, 'broad', 1.0], [0.2, -3.6, 'broad', 0.9]],
+        [[-2.9, -2.0, 'pine', 0.95], [2.8, -1.9, 'pine', 0.9], [-2.7, 2.1, 'broad', 0.85], [2.7, 2.0, 'pine', 0.95]],
+        [[-3.9, -2.4, 'pine', 1.1], [3.8, -2.2, 'pine', 1.15], [-3.7, 2.5, 'broad', 1.05], [3.6, 2.6, 'pine', 1.0], [-1.2, -4.2, 'pine', 0.95], [1.4, 4.1, 'broad', 0.9]],
+        [[-3.5, -2.2, 'broad', 1.0], [3.4, -2.4, 'broad', 0.95], [-3.3, 2.4, 'pine', 0.95], [3.5, 2.1, 'broad', 1.05], [-0.4, -4.0, 'pine', 0.9]]
+      ];
+
       ISLAND_CONFIGS.forEach((cfg, idx) => {
         const root = new THREE.Group();
         root.position.set(cfg.pos.x, 0, cfg.pos.z);
 
-        // 深沉海床基座（向下延伸至 y = -4.2，徹底埋入海面下，任何角度都看不到島底部）
         const seabedBase = new THREE.Mesh(
           new THREE.CylinderGeometry(cfg.radius * 0.96, cfg.radius * 1.22, 3.6, 22),
           new THREE.MeshStandardMaterial({ color: 0x6b4c38, roughness: 0.95 })
@@ -664,7 +824,6 @@
         root.add(seabedBase, rock, beach, grass);
         clickableMeshes.push(seabedBase, rock, beach, grass);
 
-        // 島嶼邊緣動態海浪白沫環（兩層波紋拍打海岸）
         const innerWave = new THREE.Mesh(
           new THREE.RingGeometry(cfg.radius * 1.04, cfg.radius * 1.18, 32),
           new THREE.MeshBasicMaterial({ color: 0xf0f9ff, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
@@ -683,10 +842,59 @@
         scene.add(outerWave);
         shoreWaves.push({ mesh: outerWave, baseScaleX: 1, baseScaleY: 1, phase: idx * 1.1 + 1.5, isOuter: true });
 
-        // 種植樹木與灌木
-// ... existing code ... -->
+        (treePlacements[idx] || []).forEach(([tx, tz, variant, sc]) => {
+          const tree = makeTree(variant, sc);
+          tree.position.set(tx, 0.68, tz);
+          root.add(tree);
+
+          const shrub = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(0.32 * sc, 1),
+            new THREE.MeshStandardMaterial({ color: 0x6a994e, roughness: 0.85 })
+          );
+          shrub.position.set(tx + 0.45 * sc, 0.82, tz + 0.35 * sc);
+          root.add(shrub);
+        });
+
+        // 島嶼專屬建築地標
+        if (cfg.id === 'portal') {
+          const arch = new THREE.Mesh(
+            new THREE.TorusGeometry(1.75, 0.3, 10, 22, Math.PI),
+            new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.8 })
+          );
+          arch.position.set(0, 1.4, -0.5);
+          const runeRing = new THREE.Mesh(
+            new THREE.TorusGeometry(1.15, 0.08, 8, 24),
+            new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.7 })
+          );
+          runeRing.position.set(0, 1.75, -0.5);
+          const baseStep = new THREE.Mesh(
+            new THREE.CylinderGeometry(2.1, 2.35, 0.32, 16),
+            new THREE.MeshStandardMaterial({ color: 0xd6d3d1 })
+          );
+          baseStep.position.set(0, 0.8, -0.5);
+          root.add(arch, runeRing, baseStep);
+        } else if (cfg.id === 'village') {
+          const house = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.75, 2.2), new THREE.MeshStandardMaterial({ color: 0xfef3c7 }));
+          house.position.set(-0.6, 1.55, -0.4);
+          const roof = new THREE.Mesh(new THREE.ConeGeometry(2.15, 1.25, 4), new THREE.MeshStandardMaterial({ color: 0xc2410c }));
+          roof.position.set(-0.6, 3.0, -0.4);
+          roof.rotation.y = Math.PI * 0.25;
+          const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.85, 0.36), new THREE.MeshStandardMaterial({ color: 0x78350f }));
+          chimney.position.set(0.25, 3.15, -0.65);
+          const door = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.95, 0.12), new THREE.MeshStandardMaterial({ color: 0x78350f }));
+          door.position.set(-0.6, 1.15, 0.72);
+          const winMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xf59e0b, emissiveIntensity: 0.2 });
+          windowMats.push(winMat);
+          const win1 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.12), winMat);
+          win1.position.set(-1.35, 1.65, 0.72);
+          const win2 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.12), winMat);
+          win2.position.set(0.15, 1.65, 0.72);
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.7), new THREE.MeshStandardMaterial({ color: 0xd97706 }));
+          pole.position.set(1.65, 2.0, 0.5);
+          const flag = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.58, 0.06), new THREE.MeshStandardMaterial({ color: 0x2b7a9b }));
+          flag.position.set(2.12, 3.0, 0.5);
+          root.add(house, roof, chimney, door, win1, win2, pole, flag);
         } else if (cfg.id === 'camp') {
-          // 練功島共有 3 頂帳篷（主營帳 + 2 頂共學小帳篷）
           const tentConfigs = [
             { x: -1.1, z: -0.95, r: 1.5, h: 1.85, rot: Math.PI * 0.25, color: 0xd97742 },
             { x: 1.35, z: -1.15, r: 1.25, h: 1.55, rot: Math.PI * 0.12, color: 0x2b7a9b },
@@ -719,8 +927,36 @@
           flame.position.set(1.15, 1.25, 1.05);
           root.add(flame);
         } else if (cfg.id === 'peaks') {
-// ... existing code ... -->
-        // 島上散步男女生同學（移動速度更悠閒緩慢、具備手腳擺動與朝向）
+          const peakMain = makeRoundedHill(2.7, 4.4, 2.5, 0x577590, true);
+          peakMain.position.set(-0.6, 0.65, -0.3);
+          const peakSub = makeRoundedHill(1.9, 2.9, 1.8, 0x6c8ba3, true);
+          peakSub.position.set(1.55, 0.65, 0.7);
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.35), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+          pole.position.set(-0.6, 5.2, -0.3);
+          const flag = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, 0.05), new THREE.MeshStandardMaterial({ color: 0xe11d48 }));
+          flag.position.set(-0.2, 5.65, -0.3);
+          root.add(peakMain, peakSub, pole, flag);
+        } else if (cfg.id === 'workplace') {
+          const bldg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.8, 2.3), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+          bldg.position.set(0, 2.55, -0.3);
+          const roofTrim = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.25, 2.5), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+          roofTrim.position.set(0, 4.5, -0.3);
+          const door = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.15, 0.14), new THREE.MeshStandardMaterial({ color: 0xbae6fd }));
+          door.position.set(0, 1.25, 0.88);
+          const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 0.6), new THREE.MeshStandardMaterial({ color: 0x2b7a9b }));
+          canopy.position.set(0, 1.9, 1.05);
+          root.add(bldg, roofTrim, door, canopy);
+          for (let wy = 0; wy < 2; wy++) {
+            for (let wx = -1; wx <= 1; wx++) {
+              const wm = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xf59e0b, emissiveIntensity: 0.25 });
+              windowMats.push(wm);
+              const win = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.48, 0.12), wm);
+              win.position.set(wx * 0.72, 2.55 + wy * 0.9, 0.88);
+              root.add(win);
+            }
+          }
+        }
+
         const stuCount = cfg.radius >= 5.8 ? 4 : 3;
         for (let s = 0; s < stuCount; s++) {
           const isFemale = (idx + s) % 2 === 1;
@@ -750,12 +986,105 @@
         scene.add(root);
         islandGroups[cfg.id] = { group: root, phase: idx * 1.25, cfg };
       });
-// ... existing code ... -->
+
+      // 五座島閉合環狀吊橋
+      for (let i = 0; i < ISLAND_CONFIGS.length; i++) {
+        const nextIdx = (i + 1) % ISLAND_CONFIGS.length;
+        const plankCount = 12;
+        const planks = [];
+        for (let p = 0; p < plankCount; p++) {
+          const pk = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 0.42), new THREE.MeshStandardMaterial({ color: 0x9c6b43 }));
+          scene.add(pk);
+          planks.push(pk);
+        }
+        const ropeMat = new THREE.LineBasicMaterial({ color: 0x5c3a21 });
+        const ropeL = new THREE.Line(new THREE.BufferGeometry(), ropeMat);
+        const ropeR = new THREE.Line(new THREE.BufferGeometry(), ropeMat);
+        scene.add(ropeL, ropeR);
+        bridges.push({ from: i, to: nextIdx, planks, ropeL, ropeR });
+      }
+
+      // 雨滴系統
+      const rainCount = 450;
+      const rainPos = new Float32Array(rainCount * 3);
+      for (let i = 0; i < rainCount; i++) {
+        rainPos[i * 3] = (Math.random() - 0.5) * 90;
+        rainPos[i * 3 + 1] = Math.random() * 36;
+        rainPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+      }
+      const rainGeo = new THREE.BufferGeometry();
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+      rainSystem = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xe0f2fe, size: 0.25, transparent: true, opacity: 0.6 }));
+      rainSystem.visible = false;
+      scene.add(rainSystem);
+
+      // 點擊射線偵測
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      let downX = 0, downY = 0;
+      renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+      renderer.domElement.addEventListener('pointerup', e => {
+        if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(clickableMeshes, false);
+        if (hits.length > 0 && hits[0].object.userData.islandId) {
+          focusOnIsland(hits[0].object.userData.islandId);
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (!renderer || !camera) return;
+        camera.aspect = Math.max(1, container.clientWidth) / Math.max(1, container.clientHeight);
+        camera.updateProjectionMatrix();
+        renderer.setSize(Math.max(1, container.clientWidth), Math.max(1, container.clientHeight));
+      });
+    }
+
+    function updateProjectedLabelsPosition() {
+      if (!camera) return;
+      const container = document.getElementById('canvas-container');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      ISLAND_CONFIGS.forEach(cfg => {
+        const el = document.getElementById(`label-${cfg.id}`);
+        const obj = islandGroups[cfg.id];
+        if (!el || !obj) return;
+        const worldPos = new THREE.Vector3(cfg.pos.x, obj.group.position.y + 4.8, cfg.pos.z);
+        worldPos.project(camera);
+        if (worldPos.z > 1) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = 'block';
+          el.style.left = `${(worldPos.x * 0.5 + 0.5) * w}px`;
+          el.style.top = `${(-worldPos.y * 0.5 + 0.5) * h}px`;
+        }
+      });
+    }
+
+    let lastTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      if (!renderer || !scene || !camera) return;
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      const t = now * 0.001;
+
+      if (!state.reduceMotion) {
+        if (waterMesh && waterBasePos) {
+          const arr = waterMesh.geometry.attributes.position.array;
+          for (let i = 0; i < arr.length; i += 3) {
+            arr[i + 1] = Math.sin(waterBasePos[i] * 0.1 + t * 1.2) * 0.14 + Math.cos(waterBasePos[i + 2] * 0.1 + t) * 0.14;
+          }
+          waterMesh.geometry.attributes.position.needsUpdate = true;
+        }
+
         Object.values(islandGroups).forEach((obj) => {
           obj.group.position.y = Math.sin(t * 0.8 + obj.phase) * 0.16;
         });
 
-        // 海岸邊緣海浪白沫拍岸動態
         shoreWaves.forEach((w, wi) => {
           const waveCycle = Math.sin(t * 1.4 + w.phase);
           const pulse = 1 + (w.isOuter ? 0.045 : 0.03) * waveCycle;
@@ -793,7 +1122,6 @@
 
         students.forEach((st, idx) => {
           const cfg = ISLAND_CONFIGS[st.islandIdx];
-          // 手腳自然悠閒擺動
           const stride = Math.sin(t * 3.2 + idx * 1.7) * 0.42;
           if (st.leftLeg && st.rightLeg) {
             st.leftLeg.rotation.x = stride;
@@ -837,7 +1165,6 @@
         });
       }
 
-      // 更新環狀吊橋
       bridges.forEach((br) => {
         const aObj = islandGroups[ISLAND_CONFIGS[br.from].id];
         const bObj = islandGroups[ISLAND_CONFIGS[br.to].id];
@@ -881,11 +1208,11 @@
 
       if (cameraAnim.active) {
         camera.position.lerp(cameraAnim.targetPos, 0.08);
-        controls.target.lerp(cameraAnim.targetLook, 0.08);
+        if (controls) controls.target.lerp(cameraAnim.targetLook, 0.08);
         if (camera.position.distanceTo(cameraAnim.targetPos) < 0.25) cameraAnim.active = false;
       }
 
-      controls.update();
+      if (controls) controls.update();
       renderer.render(scene, camera);
       updateProjectedLabelsPosition();
     }
@@ -1411,13 +1738,15 @@
     function openRoleModal(preselect) {
       modalRoleChoice = preselect || state.role || 'visitor';
       updateRoleModalUI();
-      document.getElementById('role-modal').classList.remove('hidden');
+      const modal = document.getElementById('role-modal');
+      if (modal) modal.classList.remove('hidden');
     }
 
     function updateRoleModalUI() {
       const vBtn = document.getElementById('choice-visitor');
       const sBtn = document.getElementById('choice-student');
       const idSec = document.getElementById('student-id-section');
+      if (!vBtn || !sBtn || !idSec) return;
       if (modalRoleChoice === 'student') {
         sBtn.className = 'text-left p-4 rounded-2xl border-2 border-[#2b7a9b] bg-[#e4f0f7] transition focus:outline-none';
         vBtn.className = 'text-left p-4 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#3d7a47] transition focus:outline-none';
@@ -1432,6 +1761,7 @@
     function updateHudRoleBadge() {
       const dot = document.getElementById('role-dot');
       const txt = document.getElementById('role-badge-text');
+      if (!dot || !txt) return;
       if (state.role === 'student') {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-[#2b7a9b]';
         txt.textContent = state.studentProfile
@@ -1443,55 +1773,88 @@
       }
     }
 
-    function bootApp() {
-      // 若同網域子頁面已驗證過在校生，自動同步回 3D 入口主頁
-      if (window.IslandAuth && window.IslandAuth.isStudent()) {
-        const s = window.IslandAuth.getSession();
-        state.role = 'student';
-        state.studentLast3 = s.last3;
-        if (s.displayName) {
-          state.studentProfile = { grade: s.grade, name: s.displayName };
+    function syncSessionFromStorage() {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.role === 'student' && parsed.last3) {
+            state.role = 'student';
+            state.studentLast3 = parsed.last3;
+            state.studentFullId = parsed.fullId || '';
+            if (parsed.displayName) {
+              state.studentProfile = { grade: parsed.grade || '在校生', name: parsed.displayName };
+            }
+            document.getElementById('role-modal')?.classList.add('hidden');
+          }
         }
-        document.getElementById('role-modal').classList.add('hidden');
+      } catch (e) {}
+    }
+
+    function bindRoleModalEvents() {
+      const vBtn = document.getElementById('choice-visitor');
+      const sBtn = document.getElementById('choice-student');
+      const switchBtn = document.getElementById('btn-switch-role');
+      const closeDrawerBtn = document.getElementById('btn-close-drawer');
+      const confirmBtn = document.getElementById('btn-confirm-role');
+
+      if (vBtn) vBtn.onclick = () => { modalRoleChoice = 'visitor'; updateRoleModalUI(); };
+      if (sBtn) sBtn.onclick = () => { modalRoleChoice = 'student'; updateRoleModalUI(); };
+      if (switchBtn) switchBtn.onclick = () => openRoleModal(state.role);
+      if (closeDrawerBtn) closeDrawerBtn.onclick = closeIslandDrawer;
+
+      if (confirmBtn) {
+        confirmBtn.onclick = () => {
+          if (modalRoleChoice === 'student') {
+            const raw = (document.getElementById('student-id-input')?.value || '').trim();
+            if (!/^[A-Za-z0-9]{7,10}$/.test(raw)) {
+              document.getElementById('student-id-error')?.classList.remove('hidden');
+              return;
+            }
+            document.getElementById('student-id-error')?.classList.add('hidden');
+            state.role = 'student';
+            state.studentFullId = raw.toUpperCase();
+            state.studentLast3 = state.studentFullId.slice(-3);
+            state.studentProfile = findStudentById(state.studentFullId);
+            try {
+              sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+                role: 'student',
+                last3: state.studentLast3,
+                grade: state.studentProfile ? state.studentProfile.grade : '在校生',
+                displayName: state.studentProfile ? state.studentProfile.name : '',
+                fullId: state.studentFullId
+              }));
+            } catch (e) {}
+          } else {
+            state.role = 'visitor';
+            state.studentFullId = '';
+            state.studentLast3 = '';
+            state.studentProfile = null;
+            try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+          }
+          try { localStorage.setItem(ROLE_STORAGE_KEY, state.role); } catch (e) {}
+          document.getElementById('role-modal')?.classList.add('hidden');
+          updateHudRoleBadge();
+          renderLabelsAndNav();
+          if (state.selectedIslandId) openIslandDrawer(state.selectedIslandId);
+        };
+      }
+    }
+
+    function bootApp() {
+      bindRoleModalEvents();
+      syncSessionFromStorage();
+
+      try {
+        initThreeScene();
+        requestAnimationFrame(animate);
+      } catch (err) {
+        console.warn('3D 場景初始化略過或重試：', err);
       }
 
-      initThreeScene();
       renderLabelsAndNav();
       updateHudRoleBadge();
       fetchJiaoxiWeather();
-      requestAnimationFrame(animate);
-
-      document.getElementById('choice-visitor').onclick = () => { modalRoleChoice = 'visitor'; updateRoleModalUI(); };
-      document.getElementById('choice-student').onclick = () => { modalRoleChoice = 'student'; updateRoleModalUI(); };
-      document.getElementById('btn-switch-role').onclick = () => openRoleModal(state.role);
-      document.getElementById('btn-close-drawer').onclick = closeIslandDrawer;
-
-      document.getElementById('btn-confirm-role').onclick = () => {
-        if (modalRoleChoice === 'student') {
-          const raw = document.getElementById('student-id-input').value.trim();
-          if (!/^[A-Za-z0-9]{7,10}$/.test(raw)) {
-            document.getElementById('student-id-error').classList.remove('hidden');
-            return;
-          }
-          document.getElementById('student-id-error').classList.add('hidden');
-          state.role = 'student';
-          state.studentFullId = raw.toUpperCase();
-          state.studentLast3 = state.studentFullId.slice(-3);
-          state.studentProfile = findStudentById(state.studentFullId);
-          if (window.IslandAuth) window.IslandAuth.loginAsStudent(state.studentFullId);
-        } else {
-          state.role = 'visitor';
-          state.studentFullId = '';
-          state.studentLast3 = '';
-          state.studentProfile = null;
-          if (window.IslandAuth) window.IslandAuth.switchToVisitor();
-        }
-        try { localStorage.setItem(ROLE_STORAGE_KEY, state.role); } catch (e) {}
-        document.getElementById('role-modal').classList.add('hidden');
-        updateHudRoleBadge();
-        renderLabelsAndNav();
-        if (state.selectedIslandId) openIslandDrawer(state.selectedIslandId);
-      };
 
       document.getElementById('btn-motion-toggle').onclick = () => {
         state.reduceMotion = !state.reduceMotion;
