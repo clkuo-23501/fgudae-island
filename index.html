@@ -76,7 +76,7 @@
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2b7a9b] to-[#3d7a47] flex items-center justify-center text-white font-black text-lg shadow-sm">🏝️</div>
         <div>
           <h1 class="text-sm sm:text-base font-black text-slate-800 leading-tight">佛光經濟學習島嶼</h1>
-          <p class="text-[11px] text-slate-500 font-medium hidden sm:block">佛光應用經濟學系・多島入口主頁</p>
+          <p class="text-[11px] text-slate-500 font-medium hidden sm:block">佛光大學應用經濟學系・多島入口主頁</p>
         </div>
       </div>
 
@@ -219,7 +219,7 @@
 
       <button id="btn-confirm-role" type="button"
         class="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-[#2b7a9b] to-[#3d7a47] hover:opacity-95 text-white font-black text-sm shadow-md transition">
-        開始探索宜蘭學習島嶼 ➔
+        開始探索佛光經濟學習島嶼 ➔
       </button>
     </div>
   </div>
@@ -426,7 +426,7 @@
        4. Three.js 3D 宜蘭山海、龜山島、藍鵲、五座大小錯落島嶼與環狀吊橋
        ========================================================================= */
     let scene, camera, renderer, controls;
-    let sunLight, ambientLight, waterMesh, waterBasePos, smokeParticles = [], clouds = [], magpies = [], bridges = [], students = [], rainSystem;
+    let sunLight, ambientLight, waterMesh, waterBasePos, smokeParticles = [], clouds = [], magpies = [], bridges = [], students = [], shoreWaves = [], rainSystem;
     let islandGroups = {}, clickableMeshes = [], windowMats = [];
     let cameraAnim = { active: false, targetPos: new THREE.Vector3(), targetLook: new THREE.Vector3() };
     const DEFAULT_CAM_POS = new THREE.Vector3(0, 29, 44);
@@ -442,133 +442,122 @@
     }
 
     function makeRoundedHill(rx, h, rz, colorHex, hasSnow = false) {
-      const group = new THREE.Group();
-      const geo = new THREE.SphereGeometry(1, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.5);
-      const pos = geo.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i);
-        const profile = Math.pow(Math.cos(y * Math.PI * 0.48), 0.72);
-        pos.setX(i, pos.getX(i) * profile * rx);
-        pos.setZ(i, pos.getZ(i) * profile * rz);
-        pos.setY(i, y * h);
-      }
-      geo.computeVertexNormals();
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.85 }));
-      group.add(mesh);
-
-      if (hasSnow) {
-        const snowGeo = new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.24);
-        const sPos = snowGeo.attributes.position;
-        for (let i = 0; i < sPos.count; i++) {
-          const y = sPos.getY(i);
-          const profile = Math.pow(Math.cos(y * Math.PI * 0.48), 0.72);
-          sPos.setX(i, sPos.getX(i) * profile * rx * 1.01);
-          sPos.setZ(i, sPos.getZ(i) * profile * rz * 1.01);
-          sPos.setY(i, y * h + 0.06);
-        }
-        snowGeo.computeVertexNormals();
-        group.add(new THREE.Mesh(snowGeo, new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.65 })));
-      }
-      return group;
-    }
-
-    function makeWindow(w, h) {
-      const g = new THREE.Group();
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, 0.08), new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 }));
-      const mat = new THREE.MeshStandardMaterial({ color: 0x93c5fd, emissive: 0xfde047, emissiveIntensity: 0.15, roughness: 0.25 });
-      windowMats.push(mat);
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), mat);
-      const barV = new THREE.Mesh(new THREE.BoxGeometry(0.04, h, 0.12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
-      const barH = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, 0.12), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
-      g.add(frame, glass, barV, barH);
-      return g;
-    }
-
-    // 精緻樹木生成器（多層圓潤樹冠與樹幹）
-    function makeStylizedTree(scale = 1, variant = 0) {
-      const tree = new THREE.Group();
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.11 * scale, 0.19 * scale, 1.05 * scale, 8),
-        new THREE.MeshStandardMaterial({ color: 0x7c4d2b, roughness: 0.9 })
-      );
-      trunk.position.y = 0.52 * scale;
-      tree.add(trunk);
-
-      const palette = variant === 0
-        ? [0x2d6a4f, 0x40916c, 0x52b788]
-        : [0x3d7a47, 0x5a9e4b, 0x74b85e];
-
-      if (variant === 0) {
-        for (let i = 0; i < 3; i++) {
-          const cone = new THREE.Mesh(
-            new THREE.ConeGeometry((0.88 - i * 0.2) * scale, 1.05 * scale, 10),
-            new THREE.MeshStandardMaterial({ color: palette[i], roughness: 0.8 })
-          );
-          cone.position.y = (1.15 + i * 0.55) * scale;
-          tree.add(cone);
-        }
-      } else {
-        const puffOffsets = [
-          { x: 0, y: 1.45, z: 0, r: 0.78, c: palette[0] },
-          { x: -0.35, y: 1.25, z: 0.25, r: 0.55, c: palette[1] },
-          { x: 0.36, y: 1.3, z: -0.2, r: 0.52, c: palette[2] }
-        ];
-        puffOffsets.forEach(p => {
-          const puff = new THREE.Mesh(
-            new THREE.SphereGeometry(p.r * scale, 12, 10),
-            new THREE.MeshStandardMaterial({ color: p.c, roughness: 0.82 })
-          );
-          puff.position.set(p.x * scale, p.y * scale, p.z * scale);
-          tree.add(puff);
-        });
-      }
-      return tree;
-    }
-
-    // 精緻台灣藍鵲模型（寶藍羽身、黑頭、紅嘴、長尾羽與白色尾端）
-    function makeFormosanBlueMagpie() {
-      const bird = new THREE.Group();
-      const blueMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.45 });
-      const darkWingMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5 });
-      const blackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
-      const redMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
-      const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
-
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), blueMat);
-      body.scale.set(0.85, 0.82, 1.65);
-      bird.add(body);
-
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), blackMat);
-      head.position.set(0, 0.08, 0.36);
-      bird.add(head);
-
-      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.24, 8), redMat);
-      beak.rotation.x = Math.PI * 0.5;
-      beak.position.set(0, 0.06, 0.58);
-      bird.add(beak);
-
-      const tailMain = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 1.25), blueMat);
-      tailMain.position.set(0, 0.02, -0.92);
-      const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.03, 0.38), whiteMat);
-      tailTip.position.set(0, 0.02, -1.68);
-      bird.add(tailMain, tailTip);
-
-      const lWing = new THREE.Group();
-      const lInner = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 0.34), darkWingMat);
-      lInner.position.set(-0.42, 0, 0.04);
-      const lTip = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.24), whiteMat);
-      lTip.position.set(-0.88, 0, -0.02);
-      lWing.add(lInner, lTip);
-
-      const rWing = new THREE.Group();
-      const rInner = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.04, 0.34), darkWingMat);
-      rInner.position.set(0.42, 0, 0.04);
-      const rTip = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.24), whiteMat);
-      rTip.position.set(0.88, 0, -0.02);
-      rWing.add(rInner, rTip);
-
+// ... existing code ... -->
       bird.add(lWing, rWing);
       return { group: bird, lWing, rWing };
+    }
+
+    // 精緻男女生角色生成器（含髮型、五官表情、雙手雙腳與擺動關節）
+    function makeStudentCharacter(shirtColor, isFemale, hairColor) {
+      const stu = new THREE.Group();
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xf6d3b8, roughness: 0.65 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.7 });
+      const bottomMat = new THREE.MeshStandardMaterial({ color: isFemale ? 0x334155 : 0x1e3a5f, roughness: 0.75 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.75 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+
+      // 雙腳（左腳、右腳樞紐）
+      const leftLeg = new THREE.Group();
+      leftLeg.position.set(-0.09, 0.34, 0);
+      const lLegMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.28, 8), skinMat);
+      lLegMesh.position.y = -0.14;
+      const lShoe = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.17), shoeMat);
+      lShoe.position.set(0, -0.3, 0.03);
+      leftLeg.add(lLegMesh, lShoe);
+
+      const rightLeg = new THREE.Group();
+      rightLeg.position.set(0.09, 0.34, 0);
+      const rLegMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.28, 8), skinMat);
+      rLegMesh.position.y = -0.14;
+      const rShoe = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.17), shoeMat);
+      rShoe.position.set(0, -0.3, 0.03);
+      rightLeg.add(rLegMesh, rShoe);
+
+      // 下身（女生百褶裙 / 男生長褲腰身）
+      const lowerBody = isFemale
+        ? new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.26, 12), bottomMat)
+        : new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.22, 12), bottomMat);
+      lowerBody.position.y = 0.42;
+
+      // 上衣軀幹
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.36, 12), shirtMat);
+      torso.position.y = 0.66;
+
+      // 雙手（左手、右手樞紐）
+      const leftArm = new THREE.Group();
+      leftArm.position.set(-0.22, 0.8, 0);
+      const lSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.14, 8), shirtMat);
+      lSleeve.position.y = -0.07;
+      const lHand = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.038, 0.18, 8), skinMat);
+      lHand.position.y = -0.21;
+      leftArm.add(lSleeve, lHand);
+
+      const rightArm = new THREE.Group();
+      rightArm.position.set(0.22, 0.8, 0);
+      const rSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.14, 8), shirtMat);
+      rSleeve.position.y = -0.07;
+      const rHand = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.038, 0.18, 8), skinMat);
+      rHand.position.y = -0.21;
+      rightArm.add(rSleeve, rHand);
+
+      // 頭部與五官表情
+      const headGroup = new THREE.Group();
+      headGroup.position.y = 1.04;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), skinMat);
+      headGroup.add(head);
+
+      // 眼睛、腮紅與微笑嘴巴（朝向 +Z 前方）
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
+      const blushMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.7 });
+      const mouthMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.5 });
+
+      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+      eyeL.position.set(-0.075, 0.02, 0.2);
+      const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+      eyeR.position.set(0.075, 0.02, 0.2);
+
+      const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), blushMat);
+      cheekL.scale.set(1.2, 0.7, 0.4);
+      cheekL.position.set(-0.115, -0.025, 0.185);
+      const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), blushMat);
+      cheekR.scale.set(1.2, 0.7, 0.4);
+      cheekR.position.set(0.115, -0.025, 0.185);
+
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.01, 6, 12, Math.PI), mouthMat);
+      smile.rotation.x = Math.PI;
+      smile.position.set(0, -0.045, 0.208);
+      headGroup.add(eyeL, eyeR, cheekL, cheekR, smile);
+
+      // 髮型（女生：及肩長髮＋髮飾/馬尾；男生：俐落短髮＋瀏海）
+      const hairCap = new THREE.Mesh(
+        new THREE.SphereGeometry(0.232, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58),
+        hairMat
+      );
+      hairCap.rotation.x = -0.18;
+      hairCap.position.set(0, 0.02, -0.01);
+      headGroup.add(hairCap);
+
+      if (isFemale) {
+        const backHair = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.24, 0.34, 12), hairMat);
+        backHair.position.set(0, -0.11, -0.05);
+        const ponytail = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 10), hairMat);
+        ponytail.rotation.x = 0.45;
+        ponytail.position.set(0, 0.02, -0.25);
+        const ribbon = new THREE.Mesh(
+          new THREE.SphereGeometry(0.045, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xf43f5e })
+        );
+        ribbon.position.set(0, 0.1, -0.21);
+        headGroup.add(backHair, ponytail, ribbon);
+      } else {
+        const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.1), hairMat);
+        bangs.position.set(0, 0.12, 0.18);
+        bangs.rotation.z = 0.08;
+        headGroup.add(bangs);
+      }
+
+      stu.add(leftLeg, rightLeg, lowerBody, torso, leftArm, rightArm, headGroup);
+      return { group: stu, leftLeg, rightLeg, leftArm, rightArm };
     }
 
     function initThreeScene() {
@@ -600,326 +589,186 @@
       sunLight.position.set(28, 48, 26);
       scene.add(sunLight);
 
-      // 海面
-      const waterGeo = new THREE.PlaneGeometry(340, 340, 48, 48);
+      // 海面（不透明湛藍海水，確保水下島基座完全隱藏、看不到島底部）
+      const waterGeo = new THREE.PlaneGeometry(340, 340, 56, 56);
       waterGeo.rotateX(-Math.PI / 2);
       waterBasePos = Float32Array.from(waterGeo.attributes.position.array);
-      waterMesh = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2b7a9b, roughness: 0.35, metalness: 0.08, flatShading: true }));
-      waterMesh.position.y = -1.2;
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x267496,
+        roughness: 0.32,
+        metalness: 0.12
+      });
+      waterMesh = new THREE.Mesh(waterGeo, waterMat);
+      waterMesh.position.y = -0.35;
       scene.add(waterMesh);
 
-      // 西側 U 形圓潤三層山脈（開口朝東對向龜山島）
-      const rand = createSeededRandom(20260515);
-      const layers = [
-        { r: 44, count: 12, hMin: 7, hMax: 12, color: 0x4f8f56, snow: false },
-        { r: 56, count: 14, hMin: 12, hMax: 18, color: 0x3b7a46, snow: false },
-        { r: 69, count: 16, hMin: 18, hMax: 26, color: 0x2e6338, snow: true }
-      ];
-      layers.forEach((l) => {
-        for (let i = 0; i < l.count; i++) {
-          const frac = i / Math.max(1, l.count - 1);
-          const theta = (0.36 + frac * 1.28) * Math.PI + (rand() - 0.5) * 0.08;
-          const r = l.r + (rand() - 0.5) * 4;
-          const rx = 6.5 + rand() * 5.5;
-          const rz = 6.0 + rand() * 5.0;
-          const h = l.hMin + rand() * (l.hMax - l.hMin);
-          const hill = makeRoundedHill(rx, h, rz, l.color, l.snow && h > 21);
-          hill.position.set(Math.cos(theta) * r - 6, -1.5, Math.sin(theta) * r);
-          scene.add(hill);
-        }
-      });
-
-      // 東側龜山島（側面正對 U 型山脈缺口並緩緩冒煙）
-      const guishan = new THREE.Group();
-      const shell = makeRoundedHill(5.5, 9.5, 11.5, 0x356e43, false);
-      shell.position.set(0, 0, -1.5);
-      const head = makeRoundedHill(4.0, 5.2, 4.5, 0x437d50, false);
-      head.position.set(0, 0, 10.5);
+      // 西側 U 形圓潤三層山脈（緩坡寬闊山脊 + 錯落有致的自然高低起伏）
+// ... existing code ... -->
       const tail = makeRoundedHill(2.8, 2.4, 5.5, 0x538c5e, false);
       tail.position.set(0, 0, -13.0);
       guishan.add(shell, head, tail);
       guishan.position.set(70, -1.3, 0);
       scene.add(guishan);
 
+      // 龜山島周圍海浪白沫環
+      const gsWave1 = new THREE.Mesh(
+        new THREE.RingGeometry(11.8, 13.0, 32),
+        new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.62, side: THREE.DoubleSide })
+      );
+      gsWave1.rotation.x = -Math.PI / 2;
+      gsWave1.scale.set(0.68, 1.28, 1);
+      gsWave1.position.set(70, -0.18, 0);
+      scene.add(gsWave1);
+      shoreWaves.push({ mesh: gsWave1, baseScaleX: 0.68, baseScaleY: 1.28, phase: 0.7 });
+
       for (let i = 0; i < 6; i++) {
-        const puff = new THREE.Mesh(
-          new THREE.SphereGeometry(0.6 + i * 0.14, 10, 10),
-          new THREE.MeshStandardMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.48 })
-        );
-        scene.add(puff);
-        smokeParticles.push({ mesh: puff, offset: i / 6 });
-      }
-
-      // 五座獨立小島（大小錯落、海岸沙灘環、多層岩石與豐富植栽）
+// ... existing code ... -->
+      // 五座獨立小島（深埋海床基座看不到底部 + 海岸海浪白沫環 + 豐富植栽與男女生角色）
       const shirtPalette = [0xe06d53, 0x3b82f6, 0xeab308, 0x10b981, 0x8b5cf6];
+      const hairPalette = [0x1e293b, 0x4a2c18, 0x2c1e16, 0x5c3a21];
       const treePlacements = [
-        [{ a: 2.3, d: 0.68, s: 0.9, v: 1 }, { a: -2.4, d: 0.65, s: 0.78, v: 0 }, { a: 0.5, d: 0.72, s: 0.82, v: 1 }],
-        [{ a: 2.2, d: 0.72, s: 1.15, v: 1 }, { a: 2.75, d: 0.66, s: 0.88, v: 0 }, { a: -2.1, d: 0.7, s: 1.05, v: 1 }, { a: -0.6, d: 0.74, s: 0.85, v: 0 }],
-        [{ a: 2.4, d: 0.7, s: 1.05, v: 0 }, { a: 1.85, d: 0.68, s: 0.85, v: 0 }, { a: -2.3, d: 0.7, s: 0.95, v: 1 }, { a: -0.8, d: 0.72, s: 0.8, v: 0 }],
-        [{ a: 2.1, d: 0.74, s: 1.25, v: 0 }, { a: 2.6, d: 0.72, s: 0.95, v: 0 }, { a: -2.2, d: 0.75, s: 1.15, v: 0 }, { a: -1.65, d: 0.7, s: 0.9, v: 1 }, { a: 0.4, d: 0.76, s: 1.0, v: 0 }],
-        [{ a: 2.25, d: 0.72, s: 1.1, v: 1 }, { a: -2.25, d: 0.72, s: 1.05, v: 1 }, { a: 0.85, d: 0.74, s: 0.9, v: 1 }, { a: -0.85, d: 0.74, s: 0.85, v: 0 }]
-      ];
-
+// ... existing code ... -->
       ISLAND_CONFIGS.forEach((cfg, idx) => {
         const root = new THREE.Group();
         root.position.set(cfg.pos.x, 0, cfg.pos.z);
 
-        const lowerRock = new THREE.Mesh(
-          new THREE.CylinderGeometry(cfg.radius * 0.78, cfg.radius * 0.42, 1.6, 18),
-          new THREE.MeshStandardMaterial({ color: 0x7c5840, roughness: 0.92 })
+        // 深沉海床基座（向下延伸至 y = -4.2，徹底埋入海面下，任何角度都看不到島底部）
+        const seabedBase = new THREE.Mesh(
+          new THREE.CylinderGeometry(cfg.radius * 0.96, cfg.radius * 1.22, 3.6, 22),
+          new THREE.MeshStandardMaterial({ color: 0x6b4c38, roughness: 0.95 })
         );
-        lowerRock.position.y = -1.7;
-        lowerRock.userData.islandId = cfg.id;
+        seabedBase.position.y = -2.4;
+        seabedBase.userData.islandId = cfg.id;
 
         const rock = new THREE.Mesh(
-          new THREE.CylinderGeometry(cfg.radius * 1.04, cfg.radius * 0.78, 1.5, 20),
+          new THREE.CylinderGeometry(cfg.radius * 1.04, cfg.radius * 0.96, 1.35, 22),
           new THREE.MeshStandardMaterial({ color: 0xa67c5b, roughness: 0.86 })
         );
-        rock.position.y = -0.45;
+        rock.position.y = -0.32;
         rock.userData.islandId = cfg.id;
 
         const beach = new THREE.Mesh(
-          new THREE.CylinderGeometry(cfg.radius * 1.06, cfg.radius * 1.04, 0.24, 20),
+          new THREE.CylinderGeometry(cfg.radius * 1.07, cfg.radius * 1.05, 0.24, 22),
           new THREE.MeshStandardMaterial({ color: 0xe6d5b8, roughness: 0.85 })
         );
         beach.position.y = 0.24;
         beach.userData.islandId = cfg.id;
 
         const grass = new THREE.Mesh(
-          new THREE.CylinderGeometry(cfg.radius * 1.01, cfg.radius * 1.03, 0.46, 20),
+          new THREE.CylinderGeometry(cfg.radius * 1.01, cfg.radius * 1.03, 0.46, 22),
           new THREE.MeshStandardMaterial({ color: 0x5a9e4b, roughness: 0.8 })
         );
         grass.position.y = 0.48;
         grass.userData.islandId = cfg.id;
 
-        root.add(lowerRock, rock, beach, grass);
-        clickableMeshes.push(lowerRock, rock, beach, grass);
+        root.add(seabedBase, rock, beach, grass);
+        clickableMeshes.push(seabedBase, rock, beach, grass);
+
+        // 島嶼邊緣動態海浪白沫環（兩層波紋拍打海岸）
+        const innerWave = new THREE.Mesh(
+          new THREE.RingGeometry(cfg.radius * 1.04, cfg.radius * 1.18, 32),
+          new THREE.MeshBasicMaterial({ color: 0xf0f9ff, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
+        );
+        innerWave.rotation.x = -Math.PI / 2;
+        innerWave.position.y = -0.14;
+        scene.add(innerWave);
+        shoreWaves.push({ mesh: innerWave, baseScaleX: 1, baseScaleY: 1, phase: idx * 1.1, isOuter: false });
+
+        const outerWave = new THREE.Mesh(
+          new THREE.RingGeometry(cfg.radius * 1.18, cfg.radius * 1.32, 32),
+          new THREE.MeshBasicMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.48, side: THREE.DoubleSide })
+        );
+        outerWave.rotation.x = -Math.PI / 2;
+        outerWave.position.y = -0.18;
+        scene.add(outerWave);
+        shoreWaves.push({ mesh: outerWave, baseScaleX: 1, baseScaleY: 1, phase: idx * 1.1 + 1.5, isOuter: true });
 
         // 種植樹木與灌木
-        (treePlacements[idx] || []).forEach((tp, ti) => {
-          const tree = makeStylizedTree(tp.s, tp.v);
-          tree.position.set(Math.cos(tp.a) * cfg.radius * tp.d, 0.68, Math.sin(tp.a) * cfg.radius * tp.d);
-          tree.rotation.y = ti * 1.1;
-          root.add(tree);
-
-          const bush = new THREE.Mesh(
-            new THREE.SphereGeometry(0.32 * tp.s, 8, 8),
-            new THREE.MeshStandardMaterial({ color: 0x6ab058, roughness: 0.85 })
-          );
-          bush.scale.set(1.3, 0.75, 1.1);
-          bush.position.set(
-            Math.cos(tp.a + 0.22) * cfg.radius * (tp.d * 0.92),
-            0.76,
-            Math.sin(tp.a + 0.22) * cfg.radius * (tp.d * 0.92)
-          );
-          root.add(bush);
-        });
-
-        // 島嶼專屬精緻地標
-        if (cfg.id === 'portal') {
-          const stoneMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5 });
-          const trimMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.35 });
-          const step = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.24, 1.8), stoneMat); step.position.set(0, 0.78, 0);
-          const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 3.2, 0.65), stoneMat); p1.position.set(-1.35, 2.35, 0);
-          const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 3.2, 0.65), stoneMat); p2.position.set(1.35, 2.35, 0);
-          const top = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.62, 0.8), stoneMat); top.position.set(0, 4.1, 0);
-          const runeTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.86), trimMat); runeTop.position.set(0, 4.1, 0);
-          const core = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 3.1), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.45, transparent: true, opacity: 0.72, side: THREE.DoubleSide }));
-          core.position.set(0, 2.35, 0);
-          root.add(step, p1, p2, top, runeTop, core);
-        } else if (cfg.id === 'village') {
-          const wall = new THREE.Mesh(new THREE.BoxGeometry(3.1, 2.15, 2.6), new THREE.MeshStandardMaterial({ color: 0xfbf7ee, roughness: 0.75 }));
-          wall.position.set(0, 1.75, -0.35);
-          const roof = new THREE.Mesh(new THREE.ConeGeometry(2.48, 1.45, 4), new THREE.MeshStandardMaterial({ color: 0xc2593f, roughness: 0.75 }));
-          roof.position.set(0, 3.5, -0.35); roof.rotation.y = Math.PI * 0.25;
-          const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.95, 0.42), new THREE.MeshStandardMaterial({ color: 0x9c422c }));
-          chimney.position.set(0.85, 3.75, -0.65);
-          const porch = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.18, 0.55), new THREE.MeshStandardMaterial({ color: 0xd6cfc2 }));
-          porch.position.set(-0.5, 0.78, 1.15);
-          const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.25, 0.1), new THREE.MeshStandardMaterial({ color: 0x7c4a27 }));
-          door.position.set(-0.5, 1.4, 0.97);
-          const win1 = makeWindow(0.74, 0.74); win1.position.set(0.68, 1.85, 0.97);
-          const win2 = makeWindow(0.74, 0.74); win2.rotation.y = Math.PI * 0.5; win2.position.set(1.57, 1.85, -0.35);
-          const win3 = makeWindow(0.74, 0.74); win3.rotation.y = -Math.PI * 0.5; win3.position.set(-1.57, 1.85, -0.35);
-          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.8, 8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
-          pole.position.set(2.3, 2.05, 0.9);
-          const flag = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.56, 0.06), new THREE.MeshStandardMaterial({ color: 0x2b7a9b }));
-          flag.position.set(2.78, 3.1, 0.9);
-          root.add(wall, roof, chimney, porch, door, win1, win2, win3, pole, flag);
+// ... existing code ... -->
         } else if (cfg.id === 'camp') {
-          const tent = new THREE.Mesh(new THREE.ConeGeometry(1.65, 2.0, 4), new THREE.MeshStandardMaterial({ color: 0xd97742, roughness: 0.8 }));
-          tent.position.set(-0.65, 1.68, -0.55); tent.rotation.y = Math.PI * 0.25;
-          const tentFlap = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.35, 3), new THREE.MeshStandardMaterial({ color: 0x7c3a1d }));
-          tentFlap.position.set(-0.15, 1.35, 0.25); tentFlap.rotation.y = Math.PI * 0.25;
+          // 練功島共有 3 頂帳篷（主營帳 + 2 頂共學小帳篷）
+          const tentConfigs = [
+            { x: -1.1, z: -0.95, r: 1.5, h: 1.85, rot: Math.PI * 0.25, color: 0xd97742 },
+            { x: 1.35, z: -1.15, r: 1.25, h: 1.55, rot: Math.PI * 0.12, color: 0x2b7a9b },
+            { x: -1.45, z: 1.15, r: 1.2, h: 1.5, rot: Math.PI * 0.38, color: 0xeab308 }
+          ];
+          tentConfigs.forEach(tc => {
+            const tent = new THREE.Mesh(
+              new THREE.ConeGeometry(tc.r, tc.h, 4),
+              new THREE.MeshStandardMaterial({ color: tc.color, roughness: 0.8 })
+            );
+            tent.position.set(tc.x, 0.68 + tc.h * 0.5, tc.z);
+            tent.rotation.y = tc.rot;
+
+            const tentFlap = new THREE.Mesh(
+              new THREE.ConeGeometry(tc.r * 0.34, tc.h * 0.68, 3),
+              new THREE.MeshStandardMaterial({ color: 0x334155 })
+            );
+            tentFlap.position.set(tc.x + Math.sin(tc.rot) * tc.r * 0.42, 0.68 + tc.h * 0.34, tc.z + Math.cos(tc.rot) * tc.r * 0.42);
+            tentFlap.rotation.y = tc.rot;
+            root.add(tent, tentFlap);
+          });
+
           for (let lg = 0; lg < 3; lg++) {
             const log = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0x5c3a21 }));
-            log.position.set(1.15, 0.8, 0.95);
+            log.position.set(1.15, 0.8, 1.05);
             log.rotation.set(Math.PI * 0.45, lg * (Math.PI / 3), 0);
             root.add(log);
           }
           const flame = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.85, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.45 }));
-          flame.position.set(1.15, 1.25, 0.95);
-          root.add(tent, tentFlap, flame);
+          flame.position.set(1.15, 1.25, 1.05);
+          root.add(flame);
         } else if (cfg.id === 'peaks') {
-          const peakMain = makeRoundedHill(2.9, 4.9, 2.9, 0x4f6d7a, true);
-          peakMain.position.set(-0.2, 0.65, -0.35);
-          const peakSub = makeRoundedHill(1.9, 3.1, 1.9, 0x5c7c8a, true);
-          peakSub.position.set(1.75, 0.65, 0.65);
-          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
-          pole.position.set(-0.2, 5.8, -0.35);
-          const pennant = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.46, 0.05), new THREE.MeshStandardMaterial({ color: 0xd9534f }));
-          pennant.position.set(0.22, 6.1, -0.35);
-          root.add(peakMain, peakSub, pole, pennant);
-        } else if (cfg.id === 'workplace') {
-          const tower = new THREE.Mesh(new THREE.BoxGeometry(2.85, 4.7, 2.5), new THREE.MeshStandardMaterial({ color: 0x4b6584, roughness: 0.6 }));
-          tower.position.set(0, 3.0, -0.25);
-          const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.16, 0.65), new THREE.MeshStandardMaterial({ color: 0x334155 }));
-          canopy.position.set(0, 1.95, 1.2);
-          const door = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 0.1), new THREE.MeshStandardMaterial({ color: 0xbae6fd }));
-          door.position.set(0, 1.28, 1.02);
-          for (let r = 0; r < 3; r++) {
-            for (let c = -1; c <= 1; c++) {
-              const w = makeWindow(0.48, 0.52);
-              w.position.set(c * 0.78, 2.55 + r * 0.92, 1.02);
-              root.add(w);
-            }
-          }
-          const sign = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.78, 0.28), new THREE.MeshStandardMaterial({ color: 0xd97706 }));
-          sign.position.set(0, 5.85, -0.25);
-          root.add(tower, canopy, door, sign);
-        }
-
-        // 島上散步同學
+// ... existing code ... -->
+        // 島上散步男女生同學（移動速度更悠閒緩慢、具備手腳擺動與朝向）
         const stuCount = cfg.radius >= 5.8 ? 4 : 3;
         for (let s = 0; s < stuCount; s++) {
-          const stu = new THREE.Group();
-          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.62, 10), new THREE.MeshStandardMaterial({ color: shirtPalette[(idx + s) % shirtPalette.length] }));
-          body.position.y = 0.45;
-          const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), new THREE.MeshStandardMaterial({ color: 0xf6d3b8 }));
-          head.position.y = 0.96;
-          stu.add(body, head);
+          const isFemale = (idx + s) % 2 === 1;
+          const charParts = makeStudentCharacter(
+            shirtPalette[(idx + s) % shirtPalette.length],
+            isFemale,
+            hairPalette[(idx + s) % hairPalette.length]
+          );
           const ang = (s / stuCount) * Math.PI * 2;
-          stu.position.set(Math.cos(ang) * cfg.radius * 0.48, 0.7, Math.sin(ang) * cfg.radius * 0.48);
-          root.add(stu);
-          students.push({ mesh: stu, islandIdx: idx, angle: ang, speed: 0.45 + s * 0.1, onBridge: false, bridgeIdx: idx, progress: 0 });
+          charParts.group.position.set(Math.cos(ang) * cfg.radius * 0.48, 0.7, Math.sin(ang) * cfg.radius * 0.48);
+          root.add(charParts.group);
+          students.push({
+            mesh: charParts.group,
+            leftLeg: charParts.leftLeg,
+            rightLeg: charParts.rightLeg,
+            leftArm: charParts.leftArm,
+            rightArm: charParts.rightArm,
+            islandIdx: idx,
+            angle: ang,
+            speed: 0.16 + s * 0.035,
+            onBridge: false,
+            bridgeIdx: idx,
+            progress: 0
+          });
         }
 
         scene.add(root);
         islandGroups[cfg.id] = { group: root, phase: idx * 1.25, cfg };
       });
-
-      // 環狀木造吊橋
-      for (let i = 0; i < ISLAND_CONFIGS.length; i++) {
-        const next = (i + 1) % ISLAND_CONFIGS.length;
-        const bridgeGroup = new THREE.Group();
-        const planks = [];
-        for (let p = 0; p < 14; p++) {
-          const plank = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 0.48), new THREE.MeshStandardMaterial({ color: 0xa47148 }));
-          bridgeGroup.add(plank);
-          planks.push(plank);
-        }
-        const ropeMat = new THREE.LineBasicMaterial({ color: 0x5c3a21 });
-        const ropeL = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 15 }, () => new THREE.Vector3())), ropeMat);
-        const ropeR = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 15 }, () => new THREE.Vector3())), ropeMat);
-        bridgeGroup.add(ropeL, ropeR);
-        scene.add(bridgeGroup);
-        bridges.push({ from: i, to: next, planks, ropeL, ropeR });
-      }
-
-      // 台灣藍鵲
-      for (let i = 0; i < 4; i++) {
-        const magpie = makeFormosanBlueMagpie();
-        scene.add(magpie.group);
-        magpies.push({ group: magpie.group, lWing: magpie.lWing, rWing: magpie.rWing, r: 19 + i * 5.5, y: 12.5 + i * 1.7, speed: 0.24 + i * 0.03, phase: i * 1.55 });
-      }
-
-      // 雲朵
-      for (let i = 0; i < 6; i++) {
-        const c = new THREE.Mesh(new THREE.SphereGeometry(2.2, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.78 }));
-        c.scale.set(1.8, 0.65, 1.1);
-        c.position.set(-40 + i * 16, 22 + (i % 3) * 2.5, -25 + (i % 2) * 30);
-        scene.add(c);
-        clouds.push(c);
-      }
-
-      // 雨滴粒子
-      const rainCount = 300;
-      const rainPos = new Float32Array(rainCount * 3);
-      for (let i = 0; i < rainCount; i++) {
-        rainPos[i * 3] = (Math.random() - 0.5) * 90;
-        rainPos[i * 3 + 1] = Math.random() * 35;
-        rainPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
-      }
-      const rainGeo = new THREE.BufferGeometry();
-      rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-      rainSystem = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xdbeafe, size: 0.28, transparent: true, opacity: 0.65 }));
-      rainSystem.visible = false;
-      scene.add(rainSystem);
-
-      // 3D 點擊偵測
-      const raycaster = new THREE.Raycaster();
-      const ptr = new THREE.Vector2();
-      let downPos = { x: 0, y: 0 };
-      renderer.domElement.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; });
-      renderer.domElement.addEventListener('pointerup', e => {
-        if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 7) return;
-        const rect = renderer.domElement.getBoundingClientRect();
-        ptr.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        ptr.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(ptr, camera);
-        const hits = raycaster.intersectObjects(clickableMeshes, true);
-        if (hits.length > 0 && hits[0].object.userData.islandId) {
-          focusOnIsland(hits[0].object.userData.islandId);
-        }
-      });
-
-      window.addEventListener('resize', () => {
-        if (!renderer || !camera) return;
-        camera.aspect = Math.max(1, container.clientWidth) / Math.max(1, container.clientHeight);
-        camera.updateProjectionMatrix();
-        renderer.setSize(Math.max(1, container.clientWidth), Math.max(1, container.clientHeight));
-      });
-    }
-
-    function updateProjectedLabelsPosition() {
-      const layer = document.getElementById('labels-layer');
-      if (!layer || !camera) return;
-      const w = layer.clientWidth || window.innerWidth;
-      const h = layer.clientHeight || window.innerHeight;
-      ISLAND_CONFIGS.forEach((cfg) => {
-        const el = document.getElementById(`label-${cfg.id}`);
-        const grp = islandGroups[cfg.id];
-        if (!el || !grp) return;
-        const v = new THREE.Vector3(grp.group.position.x, grp.group.position.y + 6.4, grp.group.position.z);
-        v.project(camera);
-        if (v.z > 1) {
-          el.style.opacity = '0';
-        } else {
-          el.style.opacity = '1';
-          el.style.left = `${(v.x * 0.5 + 0.5) * w}px`;
-          el.style.top = `${(-v.y * 0.5 + 0.5) * h}px`;
-        }
-      });
-    }
-
-    let lastFrameTime = performance.now();
-    function animate(now) {
-      requestAnimationFrame(animate);
-      const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
-      lastFrameTime = now;
-      const t = now * 0.001;
-
-      if (!state.reduceMotion) {
-        if (waterMesh && waterBasePos) {
-          const arr = waterMesh.geometry.attributes.position.array;
-          for (let i = 0; i < arr.length; i += 3) {
-            arr[i + 1] = waterBasePos[i + 1] + Math.sin(t * 1.1 + waterBasePos[i] * 0.1 + waterBasePos[i + 2] * 0.1) * 0.22;
-          }
-          waterMesh.geometry.attributes.position.needsUpdate = true;
-        }
-
+// ... existing code ... -->
         Object.values(islandGroups).forEach((obj) => {
-          obj.group.position.y = Math.sin(t * 0.9 + obj.phase) * 0.28;
+          obj.group.position.y = Math.sin(t * 0.8 + obj.phase) * 0.16;
+        });
+
+        // 海岸邊緣海浪白沫拍岸動態
+        shoreWaves.forEach((w, wi) => {
+          const waveCycle = Math.sin(t * 1.4 + w.phase);
+          const pulse = 1 + (w.isOuter ? 0.045 : 0.03) * waveCycle;
+          w.mesh.scale.set(w.baseScaleX * pulse, w.baseScaleY * pulse, 1);
+          w.mesh.material.opacity = (w.isOuter ? 0.42 : 0.65) + 0.18 * Math.cos(t * 1.4 + w.phase);
+          if (wi > 0) {
+            const cfgIdx = Math.floor((wi - 1) / 2);
+            const cfg = ISLAND_CONFIGS[cfgIdx];
+            if (cfg) {
+              w.mesh.position.x = cfg.pos.x;
+              w.mesh.position.z = cfg.pos.z;
+            }
+          }
         });
 
         smokeParticles.forEach((p) => {
@@ -944,18 +793,30 @@
 
         students.forEach((st, idx) => {
           const cfg = ISLAND_CONFIGS[st.islandIdx];
+          // 手腳自然悠閒擺動
+          const stride = Math.sin(t * 3.2 + idx * 1.7) * 0.42;
+          if (st.leftLeg && st.rightLeg) {
+            st.leftLeg.rotation.x = stride;
+            st.rightLeg.rotation.x = -stride;
+            st.leftArm.rotation.x = -stride * 0.85;
+            st.rightArm.rotation.x = stride * 0.85;
+          }
+
           if (!st.onBridge) {
             st.angle += st.speed * dt;
             const r = cfg.radius * 0.48;
-            st.mesh.position.set(Math.cos(st.angle) * r, 0.7 + Math.abs(Math.sin(t * 5 + idx)) * 0.08, Math.sin(st.angle) * r);
-            if (Math.sin(t * 0.35 + idx * 2.1) > 0.96) {
+            const nx = Math.cos(st.angle) * r;
+            const nz = Math.sin(st.angle) * r;
+            st.mesh.rotation.y = Math.atan2(-Math.sin(st.angle), Math.cos(st.angle));
+            st.mesh.position.set(nx, 0.7 + Math.abs(Math.sin(t * 3.2 + idx)) * 0.04, nz);
+            if (Math.sin(t * 0.22 + idx * 2.3) > 0.985) {
               st.onBridge = true;
               st.bridgeIdx = st.islandIdx;
               st.progress = 0;
               scene.add(st.mesh);
             }
           } else {
-            st.progress += dt * 0.28;
+            st.progress += dt * 0.13;
             const aObj = islandGroups[ISLAND_CONFIGS[st.bridgeIdx].id];
             const bObj = islandGroups[ISLAND_CONFIGS[(st.bridgeIdx + 1) % ISLAND_CONFIGS.length].id];
             const pA = aObj.group.position;
@@ -965,6 +826,7 @@
             const ePt = pB.clone().addScaledVector(u, -bObj.cfg.radius * 0.96).add(new THREE.Vector3(0, 0.72, 0));
             const pos = new THREE.Vector3().lerpVectors(sPt, ePt, Math.min(1, st.progress));
             pos.y -= Math.sin(Math.min(1, st.progress) * Math.PI) * 0.65;
+            st.mesh.rotation.y = Math.atan2(u.x, u.z);
             st.mesh.position.copy(pos);
             if (st.progress >= 1) {
               st.onBridge = false;
