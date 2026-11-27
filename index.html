@@ -625,16 +625,31 @@
       headGroup.add(eyeL, eyeR, cheekL, cheekR, smile);
 
       const hairCap = new THREE.Mesh(
-        new THREE.SphereGeometry(0.232, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58),
+        new THREE.SphereGeometry(0.232, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
         hairMat
       );
-      hairCap.rotation.x = -0.18;
-      hairCap.position.set(0, 0.02, -0.01);
+      hairCap.rotation.x = -0.22;
+      hairCap.position.set(0, 0.03, -0.02);
       headGroup.add(hairCap);
 
       if (isFemale) {
-        const backHair = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.24, 0.34, 12), hairMat);
-        backHair.position.set(0, -0.11, -0.05);
+        // 僅包覆後腦勺的半圓柱長髮（只畫背面弧度，絕不擋住正面臉龐）
+        const backHair = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.21, 0.23, 0.34, 12, 1, false, Math.PI * 0.65, Math.PI * 0.7),
+          hairMat
+        );
+        backHair.position.set(0, -0.1, -0.04);
+
+        // 兩側耳旁垂墜的細長鬢角髮絲
+        const sideLockL = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.24, 8), hairMat);
+        sideLockL.position.set(-0.2, -0.07, 0.03);
+        const sideLockR = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.24, 8), hairMat);
+        sideLockR.position.set(0.2, -0.07, 0.03);
+
+        // 額頭上方可愛齊瀏海
+        const femaleBangs = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.08), hairMat);
+        femaleBangs.position.set(0, 0.13, 0.18);
+
         const ponytail = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 10), hairMat);
         ponytail.rotation.x = 0.45;
         ponytail.position.set(0, 0.02, -0.25);
@@ -643,7 +658,7 @@
           new THREE.MeshStandardMaterial({ color: 0xf43f5e })
         );
         ribbon.position.set(0, 0.1, -0.21);
-        headGroup.add(backHair, ponytail, ribbon);
+        headGroup.add(backHair, sideLockL, sideLockR, femaleBangs, ponytail, ribbon);
       } else {
         const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.1), hairMat);
         bangs.position.set(0, 0.12, 0.18);
