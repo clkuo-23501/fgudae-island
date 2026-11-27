@@ -35,7 +35,7 @@
   </header>
 
   <main class="max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-5 flex-1">
-    <!-- 試算表權限與自動寫入設定區塊 -->
+    <!-- 試算表權限與自動寫入狀態區塊 -->
     <section id="sheet-access-banner" class="rounded-2xl p-4 border"></section>
 
     <!-- 分頁切換：共學組隊 / 歷屆筆記 -->
@@ -154,7 +154,6 @@
   </div>
 
   <script>
-    // 若單獨開啟此頁且尚未載入 auth.js，自動建立內建容錯權限物件
     const AuthService = window.IslandAuth || (function () {
       const KEY = 'fgu_econ_island_session_v1';
       const KNOWN = {
@@ -197,30 +196,12 @@
     const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
     const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
     let syncBannerMsg = '';
-
-    function getAppsScriptUrl() {
-      return DEFAULT_APPS_SCRIPT_URL;
-    }
-
-    function saveSubpageScriptUrl() {
-      const val = (document.getElementById('subpage-script-url')?.value || '').trim();
-      try {
-        if (val) localStorage.setItem(APPS_SCRIPT_URL_KEY, val);
-        else localStorage.removeItem(APPS_SCRIPT_URL_KEY);
-      } catch (e) {}
-      syncBannerMsg = val ? '✅ 已儲存 Google Apps Script 寫入網址！' : 'ℹ️ 已清除寫入網址';
-      renderSubpage();
-    }
+    let editingTeamId = null;
+    let confirmDeleteTeamId = null;
 
     async function sendToSheet(payload) {
-      const url = getAppsScriptUrl();
-      if (!url) {
-        syncBannerMsg = '⚠️ 尚未設定 Apps Script 網址，資料已先顯示於頁面（請貼上 /exec 網址以自動寫入試算表）';
-        renderSubpage();
-        return;
-      }
       try {
-        await fetch(url, {
+        await fetch(DEFAULT_APPS_SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -235,7 +216,7 @@
 
     const TEAMS = [
       {
-        id: 't1', cert: '永續發展基礎能力測驗', date: '2026/12/20 應試梯次', leader: '陳品睿', grade: '113級',
+        id: 't1', cert: '永續發展基礎能力測驗', date: '2026/12/20 應試梯次', leader: '陳品睿', leaderId: '113175105', grade: '113級',
         loc: '圖書館 3F 討論室・每週三 18:30', max: 5, joined: false, expanded: false,
         members: [
           { name: '陳品睿', grade: '113級', role: '團長' },
@@ -243,7 +224,7 @@
         ]
       },
       {
-        id: 't2', cert: '信託業務人員', date: '2026/12/27 應試梯次', leader: '馬範懿', grade: '112級',
+        id: 't2', cert: '信託業務人員', date: '2026/12/27 應試梯次', leader: '馬範懿', leaderId: '112175101', grade: '112級',
         loc: '雲起樓共學空間・每週四 19:00', max: 4, joined: false, expanded: false,
         members: [
           { name: '馬範懿', grade: '112級', role: '團長' },
@@ -271,6 +252,55 @@
     function toggleExpand(id) {
       const tm = TEAMS.find(t => t.id === id);
       if (tm) { tm.expanded = !tm.expanded; renderSubpage(); }
+    }
+
+    function startEditTeam(id) { editingTeamId = id; confirmDeleteTeamId = null; renderSubpage(); }
+    function cancelEditTeam() { editingTeamId = null; renderSubpage(); }
+    function saveEditTeam(id) {
+      const tm = TEAMS.find(t => t.id === id);
+      if (!tm) return;
+      const newCert = document.getElementById(`edit-cert-${id}`)?.value || tm.cert;
+      const newDate = (document.getElementById(`edit-date-${id}`)?.value || '').trim();
+      const newLoc = (document.getElementById(`edit-loc-${id}`)?.value || '').trim();
+      if (!newDate || !newLoc) return;
+      tm.cert = newCert;
+      tm.date = newDate;
+      tm.loc = newLoc;
+      editingTeamId = null;
+      const s = AuthService.getSession();
+      sendToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '修改共學讀書會',
+        grade: tm.grade,
+        studentId: s.fullId || s.last3,
+        name: tm.leader,
+        cert: tm.cert,
+        examDate: tm.date,
+        location: tm.loc,
+        role: '團長'
+      });
+    }
+
+    function askDeleteTeam(id) { confirmDeleteTeamId = id; editingTeamId = null; renderSubpage(); }
+    function cancelDeleteTeam() { confirmDeleteTeamId = null; renderSubpage(); }
+    function confirmDeleteTeam(id) {
+      const idx = TEAMS.findIndex(t => t.id === id);
+      if (idx === -1) return;
+      const removed = TEAMS[idx];
+      TEAMS.splice(idx, 1);
+      confirmDeleteTeamId = null;
+      const s = AuthService.getSession();
+      sendToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '刪除共學讀書會',
+        grade: removed.grade,
+        studentId: s.fullId || s.last3,
+        name: removed.leader,
+        cert: removed.cert,
+        examDate: removed.date,
+        location: removed.loc,
+        role: '團長'
+      });
     }
 
     function joinTeam(id) {
@@ -309,10 +339,11 @@
       msg.classList.add('hidden');
       const s = AuthService.getSession();
       const leaderName = s.displayName || `在校生(${s.last3})`;
+      const myId = s.fullId || s.last3;
       const examLabel = `${rawDate.replace(/-/g, '/')} 應試梯次`;
       TEAMS.unshift({
         id: 't_' + Date.now(), cert, date: examLabel,
-        leader: leaderName, grade: s.grade || '在校生', loc, max: 5, joined: true, expanded: true,
+        leader: leaderName, leaderId: myId, grade: s.grade || '在校生', loc, max: 5, joined: true, expanded: true,
         members: [{ name: leaderName, grade: s.grade || '在校生', role: '團長' }]
       });
       document.getElementById('new-team-loc').value = '';
@@ -320,7 +351,7 @@
         sheetTab: '揪團練功',
         actionLabel: '發起共學讀書會',
         grade: s.grade || '在校生',
-        studentId: s.fullId || s.last3,
+        studentId: myId,
         name: leaderName,
         cert,
         examDate: examLabel,
@@ -363,6 +394,7 @@
     function renderSubpage() {
       const session = AuthService.getSession();
       const isStudent = AuthService.isStudent();
+      const myCurrentId = String(session.fullId || session.last3 || '').toUpperCase();
 
       document.getElementById('subpage-role-badge').textContent = isStudent
         ? `${session.grade} ${session.displayName || '在校生'} (${session.last3})`
@@ -406,37 +438,75 @@
         `;
       }
 
-      document.getElementById('team-list').innerHTML = TEAMS.map(t => `
-        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
-          <div onclick="toggleExpand('${t.id}')" class="cursor-pointer space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="font-black text-sm text-slate-800">${escapeHtml(t.cert)}</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${t.members.length}/${t.max} 人</span>
-            </div>
-            <div class="text-xs font-bold text-[#b5653b]">📅 ${escapeHtml(t.date)}</div>
-            <div class="text-xs text-slate-600">📍 ${escapeHtml(t.loc)}・團長：${AuthService.maskName(t.leader)}（${t.grade}）</div>
-            <div class="text-[11px] font-bold text-[#2b7a9b]">${t.expanded ? '▲ 收合參與成員' : `▼ 點擊查看 ${t.members.length} 位參與成員`}</div>
-          </div>
-          ${t.expanded ? `
-            <div class="bg-white rounded-xl p-2.5 border border-slate-200 space-y-1">
-              ${t.members.map(m => `
-                <div class="flex items-center justify-between text-xs">
-                  <span class="font-bold text-slate-700">${AuthService.maskName(m.name)}（${m.grade}）</span>
-                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${m.role}</span>
+      document.getElementById('team-list').innerHTML = TEAMS.map(t => {
+        const isOwner = isStudent && t.leaderId && String(t.leaderId).toUpperCase() === myCurrentId;
+        const isEditing = isOwner && editingTeamId === t.id;
+        const isConfirmDel = isOwner && confirmDeleteTeamId === t.id;
+        return `
+          <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
+            <div onclick="toggleExpand('${t.id}')" class="cursor-pointer space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-black text-sm text-slate-800">${escapeHtml(t.cert)}</span>
+                <div class="flex items-center gap-1.5">
+                  ${isOwner ? `
+                    <button type="button" onclick="event.stopPropagation(); startEditTeam('${t.id}')"
+                      class="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:bg-amber-50 text-slate-700 text-[11px] font-bold">
+                      ✏️ 修改
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); askDeleteTeam('${t.id}')"
+                      class="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-[11px] font-bold">
+                      🗑️ 刪除
+                    </button>
+                  ` : ''}
+                  <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${t.members.length}/${t.max} 人</span>
                 </div>
-              `).join('')}
+              </div>
+              <div class="text-xs font-bold text-[#b5653b]">📅 ${escapeHtml(t.date)}</div>
+              <div class="text-xs text-slate-600">📍 ${escapeHtml(t.loc)}・團長：${AuthService.maskName(t.leader)}（${t.grade}）</div>
+              <div class="text-[11px] font-bold text-[#2b7a9b]">${t.expanded ? '▲ 收合參與成員' : `▼ 點擊查看 ${t.members.length} 位參與成員`}</div>
             </div>
-          ` : ''}
-          <button type="button" onclick="joinTeam('${t.id}')" ${isStudent && !t.joined ? '' : 'disabled'}
-            class="w-full py-2 rounded-xl text-xs font-black ${
-              !isStudent ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-              : t.joined ? 'bg-emerald-100 text-emerald-800'
-              : 'bg-[#2b5b78] text-white hover:opacity-95'
-            }">
-            ${!isStudent ? '🔒 僅限在校生報名' : t.joined ? '✅ 已加入共學' : '+1 加入共學練功'}
-          </button>
-        </div>
-      `).join('');
+            ${isConfirmDel ? `
+              <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2 text-xs">
+                <span class="font-bold text-rose-800">確定刪除此讀書會？</span>
+                <div class="flex gap-1.5">
+                  <button type="button" onclick="cancelDeleteTeam()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-600">取消</button>
+                  <button type="button" onclick="confirmDeleteTeam('${t.id}')" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black">確認刪除</button>
+                </div>
+              </div>
+            ` : ''}
+            ${isEditing ? `
+              <div class="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
+                <div class="text-xs font-black text-slate-800">✏️ 修改讀書會內容</div>
+                <input id="edit-cert-${t.id}" type="text" value="${escapeHtml(t.cert)}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white font-bold" />
+                <input id="edit-date-${t.id}" type="text" value="${escapeHtml(t.date)}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                <input id="edit-loc-${t.id}" type="text" value="${escapeHtml(t.loc)}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white" />
+                <div class="flex gap-2">
+                  <button type="button" onclick="cancelEditTeam()" class="flex-1 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-600">取消</button>
+                  <button type="button" onclick="saveEditTeam('${t.id}')" class="flex-1 py-1.5 rounded-lg bg-[#b5653b] text-white text-xs font-black">儲存修改</button>
+                </div>
+              </div>
+            ` : ''}
+            ${t.expanded ? `
+              <div class="bg-white rounded-xl p-2.5 border border-slate-200 space-y-1">
+                ${t.members.map(m => `
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="font-bold text-slate-700">${AuthService.maskName(m.name)}（${m.grade}）</span>
+                    <span class="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">${m.role}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+            <button type="button" onclick="joinTeam('${t.id}')" ${isStudent && !t.joined ? '' : 'disabled'}
+              class="w-full py-2 rounded-xl text-xs font-black ${
+                !isStudent ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                : t.joined ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-[#2b5b78] text-white hover:opacity-95'
+              }">
+              ${!isStudent ? '🔒 僅限在校生報名' : t.joined ? '✅ 已加入共學' : '+1 加入共學練功'}
+            </button>
+          </div>
+        `;
+      }).join('');
 
       document.getElementById('notes-list').innerHTML = NOTES.map(n => `
         <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-1.5">
