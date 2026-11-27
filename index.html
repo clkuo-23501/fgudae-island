@@ -229,8 +229,58 @@
        ========================================================================= */
     const SESSION_KEY = 'fgu_econ_island_session_v1';
     const ROLE_STORAGE_KEY = 'yilan_island_hub_role_b';
+    const CAMP_WEBHOOK_STORAGE_KEY = 'fgu_econ_camp_webhook_url_v1';
     const PEAKS_STANDALONE_URL = 'https://clkuo-23501.github.io/economics-cert/';
     const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
+    const APPS_SCRIPT_URL_KEY = 'fgu_island_apps_script_url_v1';
+    const DEFAULT_APPS_SCRIPT_URL = '';
+
+    function getAppsScriptUrl() {
+      try {
+        return localStorage.getItem(APPS_SCRIPT_URL_KEY) || DEFAULT_APPS_SCRIPT_URL;
+      } catch (e) {
+        return DEFAULT_APPS_SCRIPT_URL;
+      }
+    }
+
+    async function syncCampRecordToSheet(payload) {
+      const url = getAppsScriptUrl();
+      const body = Object.assign({ source: 'fgu_island_camp' }, payload);
+      state.lastSyncMessage = '⏳ 正在同步至 Google 試算表...';
+      if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
+
+      if (!url) {
+        const rowText = payload.sheetTab === '歷屆筆記'
+          ? [new Date().toLocaleString('zh-TW'), payload.grade, payload.studentId, payload.name, payload.cert, payload.summary, payload.appOrSite].join('\t')
+          : [new Date().toLocaleString('zh-TW'), payload.actionLabel, payload.grade, payload.studentId, payload.name, payload.cert, payload.examDate, payload.location, payload.role].join('\t');
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = rowText;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          state.lastSyncMessage = '📋 已複製試算表儲存格格式（尚未設定 Apps Script 網址，可直接至試算表 Ctrl+V 貼上）';
+        } catch (e) {
+          state.lastSyncMessage = '⚠️ 尚未設定 Apps Script 寫入網址（點上方 ⚙️ 設定試算表寫入）';
+        }
+        if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
+        return;
+      }
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body)
+        });
+        state.lastSyncMessage = `✅ 已自動寫入 Google 試算表「${payload.sheetTab}」分頁！`;
+      } catch (err) {
+        state.lastSyncMessage = '⚠️ 試算表連線異常，已先保留於本機畫面中';
+      }
+      if (state.selectedIslandId === 'camp') openIslandDrawer('camp');
+    }
 
     const CERT_LIST = [
       { name: '金融市場常識與職業道德', category: '共同', tip: '題庫型入門必備，考前刷完官方題庫即可高分通過。' },
@@ -329,12 +379,16 @@
       selectedExamDate: '',
       calendarMonth: new Date(2026, 11, 1),
       calendarOpen: false,
+      scriptConfigOpen: false,
+      lastSyncMessage: '',
       peaksCohort: '全部',
       offerFilter: '全部',
       weatherMode: 'live',
       weatherCondition: 'clear',
       weatherTemp: '22°C',
-      weatherLabel: '晴時多雲'
+      weatherLabel: '晴時多雲',
+      syncNotice: '',
+      gasConfigOpen: false
     };
 
     function escapeHtml(str) {
@@ -1401,15 +1455,45 @@
               <strong>⛺ 證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。</strong>
             </div>
             ${isStudent
-              ? `<a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer"
-                  class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-[#9e4f27] font-black text-[11px] hover:bg-amber-50 transition">
-                  📊 開啟「經濟系證照考取」Google 試算表 ↗
-                </a>`
+              ? `<div class="flex flex-wrap gap-1.5">
+                  <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noopener noreferrer"
+                    class="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-[#9e4f27] font-black text-[11px] hover:bg-amber-50 transition">
+                    📊 開啟試算表 ↗
+                  </a>
+                  <button type="button" onclick="toggleScriptConfig()"
+                    class="px-2.5 py-1.5 rounded-xl bg-white border border-[#e3c3a8] text-slate-700 font-bold text-[11px] hover:bg-amber-50 transition">
+                    ⚙️ ${getAppsScriptUrl() ? '已連線寫入' : '設定試算表寫入'}
+                  </button>
+                </div>
+                ${state.scriptConfigOpen ? `
+                  <div class="p-2.5 rounded-xl bg-white border border-[#e3c3a8] space-y-1.5">
+                    <div class="text-[11px] font-bold text-slate-700">貼上 Google Apps Script 部署網址（結尾為 /exec）：</div>
+                    <div class="flex gap-1.5">
+                      <input id="apps-script-url-input" type="url" value="${escapeHtml(getAppsScriptUrl())}" placeholder="https://script.google.com/macros/s/.../exec"
+                        class="flex-1 px-2.5 py-1 rounded-lg border border-slate-300 text-[11px] font-mono" />
+                      <button type="button" onclick="saveAppsScriptUrl()"
+                        class="px-3 py-1 rounded-lg bg-[#b5653b] text-white text-[11px] font-black">儲存</button>
+                    </div>
+                  </div>
+                ` : ''}
+                ${state.lastSyncMessage ? `
+                  <div class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
+                    ${escapeHtml(state.lastSyncMessage)}
+                  </div>
+                ` : ''}`
               : `<button type="button" onclick="openRoleModal('student')"
                   class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200/80 text-slate-600 font-bold text-[11px]">
                   🔒 經濟系證照考取試算表（僅限在校生點按開啟）
                 </button>`
             }
+          </div>
+              </div>
+            ` : ''}
+            ${isStudent && state.lastSheetSyncStatus ? `
+              <div class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+                ${escapeHtml(state.lastSheetSyncStatus)}
+              </div>
+            ` : ''}
           </div>
 
           ${!isStudent ? `
@@ -1697,6 +1781,17 @@
     window.toggleTeamExpand = (id) => { state.expandedTeamIds[id] = !state.expandedTeamIds[id]; openIslandDrawer('camp'); };
     window.setPeaksCohort = (g) => { state.peaksCohort = g; openIslandDrawer('peaks'); };
     window.setOfferFilter = (f) => { state.offerFilter = f; openIslandDrawer('workplace'); };
+    window.toggleScriptConfig = () => { state.scriptConfigOpen = !state.scriptConfigOpen; openIslandDrawer('camp'); };
+    window.saveAppsScriptUrl = () => {
+      const val = (document.getElementById('apps-script-url-input')?.value || '').trim();
+      try {
+        if (val) localStorage.setItem(APPS_SCRIPT_URL_KEY, val);
+        else localStorage.removeItem(APPS_SCRIPT_URL_KEY);
+      } catch (e) {}
+      state.scriptConfigOpen = false;
+      state.lastSyncMessage = val ? '✅ 已儲存 Apps Script 寫入網址！' : 'ℹ️ 已清除寫入網址';
+      openIslandDrawer('camp');
+    };
 
     window.createNewPracticeTeam = () => {
       if (state.role !== 'student') return;
@@ -1704,13 +1799,127 @@
       if (!state.selectedExamDate || !loc) return;
       const leaderName = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
       const leaderGrade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      const examLabel = `${state.selectedExamDate} 應試梯次`;
       const newId = 'tm_' + Date.now();
       PRACTICE_TEAMS.unshift({
-        id: newId, cert: state.selectedCert, examDate: `${state.selectedExamDate} 應試梯次`,
+        id: newId, cert: state.selectedCert, examDate: examLabel,
         leader: leaderName, leaderId: state.studentFullId, grade: leaderGrade,
         location: loc, max: 5, joined: true,
         members: [{ name: leaderName, studentId: state.studentFullId, grade: leaderGrade, role: '團長', note: '歡迎一起組隊練功！' }]
       });
+      state.expandedTeamIds[newId] = true;
+      state.selectedExamDate = '';
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '發起共學讀書會',
+        grade: leaderGrade,
+        studentId: state.studentFullId,
+        name: leaderName,
+        cert: state.selectedCert,
+        examDate: examLabel,
+        location: loc,
+        role: '團長'
+      });
+    };
+
+    window.joinPracticeTeam = (id) => {
+      if (state.role !== 'student') return;
+      const tm = PRACTICE_TEAMS.find(t => t.id === id);
+      if (!tm || tm.joined) return;
+      const name = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
+      const grade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      tm.joined = true;
+      tm.members.push({ name, studentId: state.studentFullId, grade, role: '成員', note: '+1 一起衝刺考照！' });
+      state.expandedTeamIds[id] = true;
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '+1 加入共學',
+        grade,
+        studentId: state.studentFullId,
+        name,
+        cert: tm.cert,
+        examDate: tm.examDate,
+        location: tm.location,
+        role: '成員'
+      });
+    };
+
+    window.submitNewStudyNote = () => {
+      if (state.role !== 'student') return;
+      const sid = document.getElementById('note-sid').value.trim();
+      const name = document.getElementById('note-name').value.trim();
+      const cert = document.getElementById('note-cert').value;
+      const tip = document.getElementById('note-tip').value.trim();
+      const app = document.getElementById('note-app').value.trim();
+      if (!sid || !name || !tip) return;
+      const matched = findStudentById(sid);
+      const cohort = matched ? matched.grade : '在校生';
+      const appOrSite = app || '系上共學講義';
+      STUDY_NOTES_LIBRARY.unshift({
+        id: 'n_' + Date.now(), cert, author: name, studentId: sid,
+        cohort, appOrSite, summary: tip
+      });
+      syncCampRecordToSheet({
+        sheetTab: '歷屆筆記',
+        grade: cohort,
+        studentId: sid,
+        name,
+        cert,
+        summary: tip,
+        appOrSite
+      });
+    };
+
+    function syncCampRecordToSheet(payload, tsvRow) {
+      const fullPayload = Object.assign({ source: 'fgu_island_camp' }, payload);
+      if (state.campWebhookUrl) {
+        fetch(state.campWebhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(fullPayload)
+        }).catch(() => {});
+        state.lastSheetSyncStatus = `✅ 已自動傳送至 Google 試算表【${fullPayload.sheetTab}】分頁！`;
+      } else {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = tsvRow;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (e) {}
+        state.lastSheetSyncStatus = `📋 已將資料列複製到剪貼簿，開啟試算表【${fullPayload.sheetTab}】按 Ctrl+V 即可貼上！`;
+      }
+    }
+
+    window.createNewPracticeTeam = () => {
+      if (state.role !== 'student') return;
+      const loc = document.getElementById('new-team-loc').value.trim();
+      if (!state.selectedExamDate || !loc) return;
+      const leaderName = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
+      const leaderGrade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      const examDateLabel = `${state.selectedExamDate} 應試梯次`;
+      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+      const newId = 'tm_' + Date.now();
+      PRACTICE_TEAMS.unshift({
+        id: newId, cert: state.selectedCert, examDate: examDateLabel,
+        leader: leaderName, leaderId: state.studentFullId, grade: leaderGrade,
+        location: loc, max: 5, joined: true,
+        members: [{ name: leaderName, studentId: state.studentFullId, grade: leaderGrade, role: '團長', note: '歡迎一起組隊練功！' }]
+      });
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        timestamp: nowStr,
+        actionLabel: '發起組隊',
+        grade: leaderGrade,
+        studentId: state.studentFullId,
+        name: leaderName,
+        cert: state.selectedCert,
+        examDate: examDateLabel,
+        location: loc,
+        role: '團長'
+      }, [nowStr, '發起組隊', leaderGrade, state.studentFullId, leaderName, state.selectedCert, examDateLabel, loc, '團長'].join('\t'));
       state.expandedTeamIds[newId] = true;
       state.selectedExamDate = '';
       openIslandDrawer('camp');
@@ -1722,8 +1931,21 @@
       if (!tm || tm.joined) return;
       const name = state.studentProfile ? state.studentProfile.name : `在校生(${state.studentLast3})`;
       const grade = state.studentProfile ? state.studentProfile.grade : '在校生';
+      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
       tm.joined = true;
       tm.members.push({ name, studentId: state.studentFullId, grade, role: '成員', note: '+1 一起衝刺考照！' });
+      syncCampRecordToSheet({
+        sheetTab: '揪團練功',
+        timestamp: nowStr,
+        actionLabel: '+1加入共學',
+        grade: grade,
+        studentId: state.studentFullId,
+        name: name,
+        cert: tm.cert,
+        examDate: tm.examDate,
+        location: tm.location,
+        role: '成員'
+      }, [nowStr, '+1加入共學', grade, state.studentFullId, name, tm.cert, tm.examDate, tm.location, '成員'].join('\t'));
       state.expandedTeamIds[id] = true;
       openIslandDrawer('camp');
     };
@@ -1737,11 +1959,24 @@
       const app = document.getElementById('note-app').value.trim();
       if (!sid || !name || !tip) return;
       const matched = findStudentById(sid);
+      const cohort = matched ? matched.grade : '在校生';
+      const appOrSite = app || '系上共學講義';
+      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
       STUDY_NOTES_LIBRARY.unshift({
         id: 'n_' + Date.now(), cert, author: name, studentId: sid,
-        cohort: matched ? matched.grade : '在校生',
-        appOrSite: app || '系上共學講義', summary: tip
+        cohort: cohort,
+        appOrSite: appOrSite, summary: tip
       });
+      syncCampRecordToSheet({
+        sheetTab: '歷屆筆記',
+        timestamp: nowStr,
+        grade: cohort,
+        studentId: sid,
+        name: name,
+        cert: cert,
+        summary: tip,
+        appOrSite: appOrSite
+      }, [nowStr, cohort, sid, name, cert, tip, appOrSite].join('\t'));
       openIslandDrawer('camp');
     };
 
