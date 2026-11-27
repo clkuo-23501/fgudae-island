@@ -35,7 +35,7 @@
   </header>
 
   <main class="max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-5 flex-1">
-    <!-- 試算表權限區塊（訪客不可點按開啟） -->
+    <!-- 試算表權限與自動寫入設定區塊 -->
     <section id="sheet-access-banner" class="rounded-2xl p-4 border"></section>
 
     <!-- 分頁切換：共學組隊 / 歷屆筆記 -->
@@ -195,6 +195,44 @@
     })();
 
     const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_fpRDsoZsrCRSIo-Vou9EzJF6Kn9SlmmpfPoXK1vNkI/edit?gid=1096108733#gid=1096108733';
+    const APPS_SCRIPT_URL_KEY = 'fgu_island_apps_script_url_v1';
+    let syncBannerMsg = '';
+
+    function getAppsScriptUrl() {
+      try { return localStorage.getItem(APPS_SCRIPT_URL_KEY) || ''; } catch (e) { return ''; }
+    }
+
+    function saveSubpageScriptUrl() {
+      const val = (document.getElementById('subpage-script-url')?.value || '').trim();
+      try {
+        if (val) localStorage.setItem(APPS_SCRIPT_URL_KEY, val);
+        else localStorage.removeItem(APPS_SCRIPT_URL_KEY);
+      } catch (e) {}
+      syncBannerMsg = val ? '✅ 已儲存 Google Apps Script 寫入網址！' : 'ℹ️ 已清除寫入網址';
+      renderSubpage();
+    }
+
+    async function sendToSheet(payload) {
+      const url = getAppsScriptUrl();
+      if (!url) {
+        syncBannerMsg = '⚠️ 尚未設定 Apps Script 網址，資料已先顯示於頁面（請貼上 /exec 網址以自動寫入試算表）';
+        renderSubpage();
+        return;
+      }
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(Object.assign({ source: 'fgu_island_camp' }, payload))
+        });
+        syncBannerMsg = `✅ 已自動寫入 Google 試算表「${payload.sheetTab}」分頁！`;
+      } catch (e) {
+        syncBannerMsg = '⚠️ 試算表寫入失敗，請檢查 Apps Script 部署權限';
+      }
+      renderSubpage();
+    }
+
     const TEAMS = [
       {
         id: 't1', cert: '永續發展基礎能力測驗', date: '2026/12/20 應試梯次', leader: '陳品睿', grade: '113級',
@@ -240,10 +278,21 @@
       const tm = TEAMS.find(t => t.id === id);
       if (!tm || tm.joined) return;
       const s = AuthService.getSession();
+      const memberName = s.displayName || `在校生(${s.last3})`;
       tm.joined = true;
       tm.expanded = true;
-      tm.members.push({ name: s.displayName || `在校生(${s.last3})`, grade: s.grade || '在校生', role: '成員' });
-      renderSubpage();
+      tm.members.push({ name: memberName, grade: s.grade || '在校生', role: '成員' });
+      sendToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '+1 加入共學',
+        grade: s.grade || '在校生',
+        studentId: s.fullId || s.last3,
+        name: memberName,
+        cert: tm.cert,
+        examDate: tm.date,
+        location: tm.loc,
+        role: '成員'
+      });
     }
 
     function createTeam() {
@@ -260,13 +309,24 @@
       msg.classList.add('hidden');
       const s = AuthService.getSession();
       const leaderName = s.displayName || `在校生(${s.last3})`;
+      const examLabel = `${rawDate.replace(/-/g, '/')} 應試梯次`;
       TEAMS.unshift({
-        id: 't_' + Date.now(), cert, date: `${rawDate.replace(/-/g, '/')} 應試梯次`,
+        id: 't_' + Date.now(), cert, date: examLabel,
         leader: leaderName, grade: s.grade || '在校生', loc, max: 5, joined: true, expanded: true,
         members: [{ name: leaderName, grade: s.grade || '在校生', role: '團長' }]
       });
       document.getElementById('new-team-loc').value = '';
-      renderSubpage();
+      sendToSheet({
+        sheetTab: '揪團練功',
+        actionLabel: '發起共學讀書會',
+        grade: s.grade || '在校生',
+        studentId: s.fullId || s.last3,
+        name: leaderName,
+        cert,
+        examDate: examLabel,
+        location: loc,
+        role: '團長'
+      });
     }
 
     function addStudyNote() {
@@ -284,10 +344,20 @@
       }
       msg.classList.add('hidden');
       const s = AuthService.getSession();
-      NOTES.unshift({ cert, author: name, cohort: s.grade || '在校生', app: app || '系上共學講義', tip });
+      const cohort = s.grade || '在校生';
+      const appOrSite = app || '系上共學講義';
+      NOTES.unshift({ cert, author: name, cohort, app: appOrSite, tip });
       document.getElementById('note-tip').value = '';
       document.getElementById('note-app').value = '';
-      renderSubpage();
+      sendToSheet({
+        sheetTab: '歷屆筆記',
+        grade: cohort,
+        studentId: sid,
+        name,
+        cert,
+        summary: tip,
+        appOrSite
+      });
     }
 
     function renderSubpage() {
@@ -311,13 +381,24 @@
 
       const banner = document.getElementById('sheet-access-banner');
       if (isStudent) {
-        banner.className = 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] flex flex-wrap items-center justify-between gap-3';
+        banner.className = 'rounded-2xl p-4 border border-[#e3c3a8] bg-[#fdf6f0] space-y-3';
         banner.innerHTML = `
-          <div class="text-xs text-slate-700 font-bold">📊 已解鎖「經濟系證照考取」Google 試算表存取權限</div>
-          <a href="${SHEET_URL}" target="_blank" rel="noopener noreferrer"
-            class="px-4 py-2 rounded-xl bg-[#b5653b] text-white text-xs font-black hover:opacity-95">
-            開啟試算表 ↗
-          </a>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs text-slate-700 font-bold">📊 已解鎖「經濟系證照考取」Google 試算表存取與自動寫入權限</div>
+            <a href="${SHEET_URL}" target="_blank" rel="noopener noreferrer"
+              class="px-4 py-2 rounded-xl bg-[#b5653b] text-white text-xs font-black hover:opacity-95">
+              開啟試算表 ↗
+            </a>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="subpage-script-url" type="url" value="${escapeHtml(getAppsScriptUrl())}" placeholder="貼上 Apps Script 部署網址（結尾 /exec）以自動寫入試算表"
+              class="flex-1 px-3 py-1.5 rounded-xl border border-[#e3c3a8] bg-white text-xs font-mono" />
+            <button type="button" onclick="saveSubpageScriptUrl()"
+              class="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-black">
+              儲存寫入網址
+            </button>
+          </div>
+          ${syncBannerMsg ? `<div class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">${escapeHtml(syncBannerMsg)}</div>` : ''}
         `;
       } else {
         banner.className = 'rounded-2xl p-4 border border-slate-200 bg-slate-100 flex flex-wrap items-center justify-between gap-3';
