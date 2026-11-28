@@ -375,7 +375,7 @@
       { id: 'camp', stage: '第二站', name: '揪團練功', subtitle: '證照準備讀書會、歷屆筆記資源、共學組隊資訊：一群人走得更遠。', icon: '⛺', pos: { x: 20, y: 0, z: 12 }, radius: 5.1, restricted: false },
       { id: 'peaks', stage: '第三站', name: '百岳修煉島', subtitle: '最新登記通過名單與獨立版修煉島入口', icon: '🏔️', pos: { x: -3, y: 0, z: 24 }, radius: 6.7, restricted: false },
       { id: 'workplace', stage: '第四站', name: '職場副本島', subtitle: '企業實習與職場體驗最新錄取榜', icon: '🏢', pos: { x: -20, y: 0, z: 1 }, radius: 6.1, restricted: true },
-      { id: 'fishing', stage: '中央休憩站', name: '釣魚島', subtitle: '蘭陽海灣垂釣小遊戲：釣起宜蘭名產與 KUSO 經濟彩蛋', icon: '🎣', pos: { x: 0, y: 0, z: 0 }, radius: 4.2, restricted: false, isCenter: true }
+      { id: 'fishing', stage: '蘭陽海灣秘境', name: '釣魚島', subtitle: '點擊直接進入【極境垂釣 3D】實景溪海模擬', icon: '🎣', pos: { x: 9.5, y: 0, z: 7.5 }, radius: 3.2, restricted: false, isFishingDirect: true }
     ];
 
     const YILAN_KUSO_CATCHES = [
@@ -1001,8 +1001,10 @@
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.06;
+        controls.enablePan = true;
+        controls.screenSpacePanning = false;
         controls.target.copy(DEFAULT_LOOK_AT);
-        controls.minDistance = 14;
+        controls.minDistance = 8;
         controls.maxDistance = 88;
         controls.maxPolarAngle = Math.PI * 0.46;
       }
@@ -1282,17 +1284,17 @@
             }
           }
         } else if (cfg.id === 'fishing') {
-          // 中央釣魚島：延伸出海岸的木棧釣魚碼頭、小遮陽傘、釣桶與拿著釣竿的漁夫
+          // 釣魚島內側海灣：延伸出海岸的木棧釣魚碼頭、小遮陽傘、釣桶與拿著釣竿的漁夫
           const pier = new THREE.Mesh(
-            new THREE.BoxGeometry(2.6, 0.16, 1.15),
+            new THREE.BoxGeometry(2.2, 0.16, 1.05),
             new THREE.MeshStandardMaterial({ color: 0x9c6b43, roughness: 0.85 })
           );
-          pier.position.set(3.9, 0.52, 0.4);
+          pier.position.set(-3.1, 0.52, -0.3);
           pier.userData.islandId = cfg.id;
           clickableMeshes.push(pier);
 
-          for (let px of [3.2, 4.7]) {
-            for (let pz of [-0.05, 0.85]) {
+          for (let px of [-2.4, -3.8]) {
+            for (let pz of [-0.7, 0.1]) {
               const post = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8),
                 new THREE.MeshStandardMaterial({ color: 0x5c3a21 })
@@ -1307,49 +1309,49 @@
             new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8),
             new THREE.MeshStandardMaterial({ color: 0xf8fafc })
           );
-          umbrellaPole.position.set(2.4, 1.7, -0.6);
+          umbrellaPole.position.set(-1.7, 1.7, 0.6);
           const umbrellaTop = new THREE.Mesh(
-            new THREE.ConeGeometry(1.35, 0.65, 10),
+            new THREE.ConeGeometry(1.2, 0.6, 10),
             new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.7 })
           );
-          umbrellaTop.position.set(2.4, 2.75, -0.6);
+          umbrellaTop.position.set(-1.7, 2.75, 0.6);
 
           const bucket = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.28, 0.22, 0.36, 10),
+            new THREE.CylinderGeometry(0.26, 0.2, 0.34, 10),
             new THREE.MeshStandardMaterial({ color: 0x38bdf8 })
           );
-          bucket.position.set(4.5, 0.78, 0.05);
+          bucket.position.set(-3.6, 0.78, 0.05);
 
           // 碼頭邊拿著長釣竿的小漁夫
           const fisher = makeStudentCharacter(0xf59e0b, false, 0x1e293b);
-          fisher.group.position.set(4.85, 0.6, 0.45);
-          fisher.group.rotation.y = Math.PI * 0.5;
+          fisher.group.position.set(-3.95, 0.6, -0.3);
+          fisher.group.rotation.y = -Math.PI * 0.5;
 
           const rod = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.02, 0.04, 2.6, 6),
+            new THREE.CylinderGeometry(0.02, 0.04, 2.4, 6),
             new THREE.MeshStandardMaterial({ color: 0x78350f })
           );
-          rod.position.set(5.9, 1.55, 0.45);
-          rod.rotation.z = -Math.PI * 0.34;
+          rod.position.set(-4.95, 1.5, -0.3);
+          rod.rotation.z = Math.PI * 0.34;
 
           const bobber = new THREE.Mesh(
-            new THREE.SphereGeometry(0.14, 10, 10),
+            new THREE.SphereGeometry(0.13, 10, 10),
             new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.3 })
           );
-          bobber.position.set(6.95, -0.15, 0.45);
+          bobber.position.set(-5.95, -0.15, -0.3);
 
           // 躍出水面的小魚彩蛋
           jumpingFish = new THREE.Mesh(
-            new THREE.ConeGeometry(0.18, 0.65, 8),
+            new THREE.ConeGeometry(0.16, 0.6, 8),
             new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.35, roughness: 0.3 })
           );
           jumpingFish.rotation.z = Math.PI * 0.5;
-          jumpingFish.position.set(6.4, -0.4, 1.3);
+          jumpingFish.position.set(-5.4, -0.4, -1.1);
 
           // 停泊在釣魚島木棧碼頭旁邊的腳踩天鵝船
           swanBoat = makePedalSwanBoat();
-          swanBoat.position.set(3.6, -0.18, -2.55);
-          swanBoat.rotation.y = Math.PI * 0.28;
+          swanBoat.position.set(-2.9, -0.18, 2.15);
+          swanBoat.rotation.y = -Math.PI * 0.35;
           swanBoat.traverse(obj => {
             if (obj.isMesh) {
               obj.userData.islandId = cfg.id;
@@ -1360,38 +1362,40 @@
           root.add(pier, umbrellaPole, umbrellaTop, bucket, fisher.group, rod, bobber, jumpingFish, swanBoat);
         }
 
-        const stuCount = cfg.radius >= 5.8 ? 4 : 3;
-        for (let s = 0; s < stuCount; s++) {
-          const isFemale = (idx + s) % 2 === 1;
-          const charParts = makeStudentCharacter(
-            shirtPalette[(idx + s) % shirtPalette.length],
-            isFemale,
-            hairPalette[(idx + s) % hairPalette.length]
-          );
-          const ang = (s / stuCount) * Math.PI * 2;
-          charParts.group.position.set(Math.cos(ang) * cfg.radius * 0.48, 0.7, Math.sin(ang) * cfg.radius * 0.48);
-          root.add(charParts.group);
-          students.push({
-            mesh: charParts.group,
-            leftLeg: charParts.leftLeg,
-            rightLeg: charParts.rightLeg,
-            leftArm: charParts.leftArm,
-            rightArm: charParts.rightArm,
-            islandIdx: idx,
-            angle: ang,
-            speed: 0.16 + s * 0.035,
-            onBridge: false,
-            bridgeIdx: idx,
-            progress: 0
-          });
+        if (!cfg.isFishingDirect) {
+          const stuCount = cfg.radius >= 5.8 ? 4 : 3;
+          for (let s = 0; s < stuCount; s++) {
+            const isFemale = (idx + s) % 2 === 1;
+            const charParts = makeStudentCharacter(
+              shirtPalette[(idx + s) % shirtPalette.length],
+              isFemale,
+              hairPalette[(idx + s) % hairPalette.length]
+            );
+            const ang = (s / stuCount) * Math.PI * 2;
+            charParts.group.position.set(Math.cos(ang) * cfg.radius * 0.48, 0.7, Math.sin(ang) * cfg.radius * 0.48);
+            root.add(charParts.group);
+            students.push({
+              mesh: charParts.group,
+              leftLeg: charParts.leftLeg,
+              rightLeg: charParts.rightLeg,
+              leftArm: charParts.leftArm,
+              rightArm: charParts.rightArm,
+              islandIdx: idx,
+              angle: ang,
+              speed: 0.16 + s * 0.035,
+              onBridge: false,
+              bridgeIdx: idx,
+              progress: 0
+            });
+          }
         }
 
         scene.add(root);
         islandGroups[cfg.id] = { group: root, phase: idx * 1.25, cfg };
       });
 
-      // 外圍五座島閉合環狀吊橋（中央釣魚島獨立佇立於海灣正中央）
-      const ringIslands = ISLAND_CONFIGS.filter(c => !c.isCenter);
+      // 外圍五座島閉合環狀吊橋（釣魚島獨立佇立於龜山島尾巴與北側山脈之間的海灣）
+      const ringIslands = ISLAND_CONFIGS.filter(c => !c.isFishingDirect);
       for (let i = 0; i < ringIslands.length; i++) {
         const nextIdx = (i + 1) % ringIslands.length;
         const fromIdx = ISLAND_CONFIGS.findIndex(c => c.id === ringIslands[i].id);
@@ -1560,7 +1564,8 @@
             const nx = Math.cos(st.angle) * r;
             const nz = Math.sin(st.angle) * r;
             st.mesh.rotation.y = Math.atan2(-Math.sin(st.angle), Math.cos(st.angle));
-            if (Math.sin(t * 0.22 + idx * 2.3) > 0.985 && !cfg.isCenter) {
+            st.mesh.position.set(nx, 0.7 + Math.abs(Math.sin(t * 3.2 + idx)) * 0.04, nz);
+            if (Math.sin(t * 0.22 + idx * 2.3) > 0.985 && !cfg.isFishingDirect) {
               st.onBridge = true;
               st.bridgeIdx = st.islandIdx;
               st.progress = 0;
@@ -1568,7 +1573,7 @@
             }
           } else {
             st.progress += dt * 0.13;
-            const ringLen = ISLAND_CONFIGS.filter(c => !c.isCenter).length;
+            const ringLen = ISLAND_CONFIGS.filter(c => !c.isFishingDirect).length;
             const aObj = islandGroups[ISLAND_CONFIGS[st.bridgeIdx].id];
             const bObj = islandGroups[ISLAND_CONFIGS[(st.bridgeIdx + 1) % ringLen].id];
             const pA = aObj.group.position;
@@ -1737,6 +1742,10 @@
     }
 
     function focusOnIsland(islandId) {
+      if (islandId === 'fishing') {
+        window.location.href = 'fishing.html';
+        return;
+      }
       const cfg = ISLAND_CONFIGS.find(i => i.id === islandId);
       if (!cfg) return;
       state.selectedIslandId = islandId;
@@ -2197,9 +2206,24 @@
         `;
       } else if (islandId === 'fishing') {
         const uniqueCount = new Set(state.catchHistory.map(c => c.id)).size;
+        const isStudent = state.role === 'student';
         body.innerHTML = `
+          <a href="fishing.html"
+            class="block p-4 rounded-2xl bg-gradient-to-r from-[#0284c7] to-[#10b981] text-white shadow-md hover:opacity-95 transition">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <div class="text-[11px] font-bold opacity-90">
+                  ${isStudent ? `🎓 已自動綁定學號 ${escapeHtml(state.studentFullId)} 雲端圖鑑` : '🎒 訪客可試玩（登入學號可永久留存圖鑑）'}
+                </div>
+                <div class="text-base font-black mt-0.5">🎣 進入【極境垂釣 3D】實境溪海模擬 ➔</div>
+                <div class="text-[11px] opacity-90 mt-1">收錄 12 種台灣溪海魚種、真實手感搏魚與雲端魚類圖鑑</div>
+              </div>
+              <span class="text-2xl">🐟</span>
+            </div>
+          </a>
+
           <div class="bg-[#e6f4f9] border border-[#bde0ee] rounded-2xl p-4 text-xs text-slate-700 leading-relaxed">
-            歡迎來到群島正中央的<strong>【🎣 釣魚島】</strong>！無論訪客或在校生都能隨時上岸拋竿，看看今天能從蘭陽海灣釣起什麼宜蘭特產或 KUSO 經濟彩蛋！
+            也可以直接在這裡體驗<strong>【🎣 釣魚島・快捷 KUSO 拋竿】</strong>，釣起宜蘭特產或經濟彩蛋！
           </div>
 
           <div class="bg-white border-2 border-[#bde0ee] rounded-3xl p-5 text-center space-y-3 shadow-sm">
