@@ -1,0 +1,2778 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>極境垂釣 3D：實景溪海模擬</title>
+    <style>
+        /* ==================== 1. 全域重置與手機防誤觸基礎 ==================== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            background-color: #162936;
+            color: #f8fafc;
+        }
+        .hidden {
+            display: none !important;
+        }
+        button {
+            border: none;
+            cursor: pointer;
+            outline: none;
+            touch-action: manipulation;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+
+        /* ==================== 2. 主視覺畫布 ==================== */
+        #game-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        /* ==================== 3. 毛玻璃通用質感 ==================== */
+        .glass-panel {
+            background: rgba(11, 20, 32, 0.78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
+        }
+
+        /* ==================== 4. 頂部中央釣場切換與右上圖鑑按鈕 ==================== */
+        #top-bar {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 55;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: max-content;
+            max-width: 96vw;
+        }
+        .back-home-btn {
+            padding: 8px 13px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #f8fafc;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        .back-home-btn:hover {
+            background: rgba(30, 41, 59, 0.92);
+        }
+        .loc-capsule {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 4px;
+            border-radius: 999px;
+        }
+        .loc-btn {
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 800;
+            background: transparent;
+            color: #cbd5e1;
+            transition: all 0.18s ease;
+            white-space: nowrap;
+        }
+        .loc-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+        .loc-btn.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #ffffff;
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.45);
+        }
+        #btn-dex, #btn-student-bind {
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        #btn-dex:hover, #btn-student-bind:hover {
+            background: rgba(30, 41, 59, 0.92);
+        }
+        .student-pill-active {
+            border-color: rgba(56, 189, 248, 0.65) !important;
+            color: #7dd3fc !important;
+        }
+        .dex-badge {
+            background: rgba(16, 185, 129, 0.25);
+            color: #6ee7b7;
+            border: 1px solid rgba(110, 231, 183, 0.45);
+            padding: 1px 7px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 900;
+        }
+        @media (max-width: 640px) {
+            .loc-btn {
+                padding: 7px 10px;
+                font-size: 12px;
+            }
+            #btn-dex, #btn-student-bind, .back-home-btn {
+                padding: 7px 11px;
+                font-size: 12px;
+            }
+        }
+
+        /* ==================== 5. 頂部提示與搏魚狀態欄 ==================== */
+        #status-toast {
+            position: fixed;
+            top: max(68px, calc(env(safe-area-inset-top) + 58px));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            padding: 7px 16px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #e2e8f0;
+            pointer-events: none;
+            white-space: nowrap;
+            transition: opacity 0.2s ease;
+        }
+
+        @keyframes bitePulse {
+            0%, 100% { transform: translate(-50%, 0) scale(1); }
+            50% { transform: translate(-50%, -4px) scale(1.06); }
+        }
+        #bite-banner {
+            position: fixed;
+            top: 23%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 52;
+            padding: 12px 26px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border: 2px solid #fde047;
+            box-shadow: 0 10px 32px rgba(239, 68, 68, 0.72);
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            color: #ffffff;
+            pointer-events: none;
+            white-space: nowrap;
+            animation: bitePulse 0.36s infinite ease-in-out;
+        }
+
+        #fight-hud {
+            position: fixed;
+            top: max(68px, calc(env(safe-area-inset-top) + 58px));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            width: min(360px, 90vw);
+            border-radius: 18px;
+            padding: 10px 16px;
+            pointer-events: none;
+        }
+        .fight-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .fight-dist {
+            color: #38bdf8;
+            font-size: 15px;
+            font-weight: 900;
+        }
+        .fight-warn {
+            color: #fb923c;
+            font-size: 12px;
+        }
+        .stamina-track {
+            width: 100%;
+            height: 9px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            overflow: hidden;
+        }
+        #stamina-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #34d399, #10b981);
+            transition: width 0.1s linear;
+        }
+
+        /* ==================== 6. 左下角純幾何 18 格分段張力儀表（無任何圖片） ==================== */
+        @keyframes gaugeShake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-2px, 1px); }
+            50% { transform: translate(2px, -1px); }
+            75% { transform: translate(-1px, -2px); }
+        }
+        #left-gauge-hud {
+            position: fixed;
+            bottom: max(16px, env(safe-area-inset-bottom));
+            left: max(14px, env(safe-area-inset-left));
+            z-index: 50;
+            width: 138px;
+            height: 138px;
+            pointer-events: none;
+        }
+        #left-gauge-hud.danger-shake {
+            animation: gaugeShake 0.16s infinite linear;
+        }
+        @media (max-width: 680px) {
+            #left-gauge-hud {
+                width: 96px;
+                height: 96px;
+                bottom: max(92px, calc(env(safe-area-inset-bottom) + 82px));
+                left: 10px;
+            }
+        }
+
+        /* ==================== 7. 底部固定高對比主操作區（支援手機單/雙拇指與電腦） ==================== */
+        #bottom-controls {
+            position: fixed;
+            bottom: max(16px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: max-content;
+            max-width: 96vw;
+        }
+        #cast-power-bar {
+            width: 220px;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1.5px solid rgba(255, 255, 255, 0.45);
+            padding: 2px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+        }
+        #cast-power-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #38bdf8, #4ade80, #facc15, #ef4444);
+        }
+        .btn-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .steer-btn {
+            min-height: 58px;
+            padding: 12px 15px;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 900;
+            color: #f8fafc;
+            border: 1.5px solid rgba(255, 255, 255, 0.35);
+            white-space: nowrap;
+        }
+        .steer-btn.active {
+            background: rgba(14, 165, 233, 0.88);
+            border-color: #7dd3fc;
+            transform: scale(0.95);
+        }
+        #btn-main-action {
+            min-height: 58px;
+            padding: 14px 28px;
+            border-radius: 999px;
+            font-size: 17px;
+            font-weight: 900;
+            letter-spacing: 0.8px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #10b981, #047857);
+            border: 2px solid rgba(167, 243, 208, 0.85);
+            box-shadow: 0 8px 26px rgba(16, 185, 129, 0.55), 0 0 0 3px rgba(6, 78, 59, 0.45);
+            white-space: nowrap;
+            transition: background 0.18s ease, box-shadow 0.18s ease;
+        }
+        #btn-main-action.state-charging {
+            background: linear-gradient(135deg, #0ea5e9, #0369a1);
+            border-color: #bae6fd;
+            box-shadow: 0 8px 26px rgba(14, 165, 233, 0.65);
+        }
+        #btn-main-action.state-waiting {
+            background: linear-gradient(135deg, #475569, #334155);
+            border-color: #cbd5e1;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.55);
+        }
+        #btn-main-action.state-biting {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border-color: #fde047;
+            box-shadow: 0 8px 30px rgba(239, 68, 68, 0.8);
+        }
+        #btn-main-action.state-fighting {
+            background: linear-gradient(135deg, #f59e0b, #b45309);
+            border-color: #fef08a;
+            box-shadow: 0 8px 26px rgba(245, 158, 11, 0.65);
+        }
+        #btn-main-action.state-showcase {
+            background: linear-gradient(135deg, #059669, #065f46);
+            border-color: #6ee7b7;
+            box-shadow: 0 8px 26px rgba(16, 185, 129, 0.65);
+        }
+        @media (max-width: 520px) {
+            #btn-main-action {
+                padding: 13px 18px;
+                font-size: 15px;
+            }
+            .steer-btn {
+                padding: 12px 10px;
+                font-size: 12px;
+            }
+        }
+
+        /* ==================== 8. 起魚控魚器特寫資料卡（絕不遮擋中央大魚） ==================== */
+        @keyframes cardInDesktop {
+            from { opacity: 0; transform: translate(18px, -50%) scale(0.96); }
+            to { opacity: 1; transform: translate(0, -50%) scale(1); }
+        }
+        #catch-card {
+            position: fixed;
+            top: 50%;
+            right: 22px;
+            transform: translateY(-50%);
+            z-index: 54;
+            width: min(320px, 38vw);
+            border-radius: 22px;
+            padding: 16px 18px;
+            text-align: center;
+            animation: cardInDesktop 0.25s ease forwards;
+        }
+        .rarity-pill {
+            display: inline-block;
+            padding: 3px 11px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        .catch-name {
+            font-size: 24px;
+            font-weight: 900;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+        .catch-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .catch-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .metric-box {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 12px;
+            padding: 8px;
+        }
+        .metric-label {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        .metric-val {
+            font-size: 17px;
+            font-weight: 900;
+            color: #38bdf8;
+            margin-top: 2px;
+        }
+        .catch-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.55);
+            border-radius: 12px;
+            padding: 9px 11px;
+            text-align: left;
+        }
+        .catch-sync-status {
+            margin-top: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(52, 211, 153, 0.45);
+            color: #6ee7b7;
+        }
+        @media (max-width: 760px) {
+            @keyframes cardInMobile {
+                from { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
+                to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+            }
+            #catch-card {
+                top: max(62px, calc(env(safe-area-inset-top) + 54px));
+                bottom: auto;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                width: min(390px, 92vw);
+                padding: 11px 14px;
+                animation: cardInMobile 0.25s ease forwards;
+            }
+            .catch-name {
+                font-size: 19px;
+            }
+            .catch-metrics {
+                margin: 7px 0;
+            }
+            .metric-box {
+                padding: 5px 8px;
+            }
+            .metric-val {
+                font-size: 15px;
+            }
+            .catch-desc {
+                font-size: 11px;
+                padding: 6px 9px;
+            }
+        }
+
+        /* ==================== 9. 魚類圖鑑與學號綁定彈窗 ==================== */
+        #dex-modal, #bind-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 80;
+            background: rgba(2, 6, 23, 0.78);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+        }
+        .dex-window {
+            width: min(760px, 96vw);
+            max-height: 86vh;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .bind-window {
+            width: min(400px, 94vw);
+            border-radius: 24px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .bind-input {
+            width: 100%;
+            padding: 11px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(15, 23, 42, 0.9);
+            color: #ffffff;
+            font-size: 15px;
+            font-family: monospace;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .dex-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dex-title {
+            font-size: 18px;
+            font-weight: 900;
+            color: #f8fafc;
+        }
+        .dex-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        #btn-close-dex {
+            padding: 8px 15px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .dex-grid {
+            padding: 16px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 12px;
+            touch-action: pan-y;
+        }
+        .dex-item {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 16px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .dex-item.locked {
+            opacity: 0.56;
+        }
+        .dex-thumb {
+            width: 100%;
+            height: 76px;
+            border-radius: 10px;
+            background: rgba(30, 41, 59, 0.65);
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 主 3D 寫實渲染畫布 -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- 頂部釣場切換膠囊與圖鑑按鈕 -->
+    <div id="top-bar">
+        <a href="index.html" class="back-home-btn glass-panel">← 返回主島</a>
+        <div class="loc-capsule glass-panel">
+            <button class="loc-btn active" data-loc="stream">山谷溪潭</button>
+            <button class="loc-btn" data-loc="shore">岩岸磯釣</button>
+            <button class="loc-btn" data-loc="ocean">遠洋船釣</button>
+        </div>
+        <button id="btn-student-bind" class="glass-panel">
+            <span id="student-bind-label">🎒 訪客（點此綁定學號）</span>
+        </button>
+        <button id="btn-dex" class="glass-panel">
+            <span>魚類圖鑑</span>
+            <span id="dex-count-badge" class="dex-badge">0/12</span>
+        </button>
+    </div>
+
+    <!-- 狀態提示膠囊 -->
+    <div id="status-toast" class="glass-panel">按住下方「拋竿垂釣」或點擊水面蓄力拋竿</div>
+
+    <!-- 上鉤警示橫幅 -->
+    <div id="bite-banner" class="hidden">魚上鉤！立即揚竿！</div>
+
+    <!-- 搏魚狀態列 -->
+    <div id="fight-hud" class="hidden glass-panel">
+        <div class="fight-row">
+            <span>剩餘距離 <span id="fight-dist-text" class="fight-dist">24.0 m</span></span>
+            <span id="fight-warn-text" class="fight-warn">按住捲線・注意張力</span>
+        </div>
+        <div class="stamina-track">
+            <div id="stamina-fill"></div>
+        </div>
+    </div>
+
+    <!-- 左下角純幾何 18 格分段張力儀表（完全無圖片） -->
+    <div id="left-gauge-hud">
+        <svg viewBox="0 0 180 180" style="width:100%;height:100%;overflow:visible;filter:drop-shadow(0 6px 16px rgba(0,0,0,0.75))">
+            <defs>
+                <radialGradient id="dialGlassGrad" cx="36%" cy="30%" r="72%">
+                    <stop offset="0%" stop-color="rgba(30, 41, 59, 0.90)"/>
+                    <stop offset="68%" stop-color="rgba(15, 23, 42, 0.94)"/>
+                    <stop offset="100%" stop-color="rgba(2, 6, 23, 0.98)"/>
+                </radialGradient>
+            </defs>
+
+            <!-- 外環深色底槽 -->
+            <path d="M 118 23 A 74 74 0 1 0 96 168" fill="none" stroke="rgba(10, 16, 26, 0.92)" stroke-width="24" stroke-linecap="butt"/>
+
+            <!-- 18 格分段扇形刻度（由 JS 動態控制亮起格數與顏色） -->
+            <g id="gauge-segments-group"></g>
+
+            <!-- 中央深色半透明毛玻璃圓盤 -->
+            <circle cx="96" cy="94" r="54" fill="url(#dialGlassGrad)" stroke="rgba(148, 163, 184, 0.36)" stroke-width="2"/>
+            <circle cx="96" cy="94" r="47" fill="none" stroke="rgba(255, 255, 255, 0.10)" stroke-width="1"/>
+            <path d="M 55 76 A 45 45 0 0 1 137 76 A 56 38 0 0 0 55 76 Z" fill="rgba(255, 255, 255, 0.08)"/>
+
+            <!-- 頂部小型魚鉤幾何圖示 -->
+            <g transform="translate(96, 60)" stroke="#94a3b8" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="0" cy="-6" r="2.2"/>
+                <path d="M 0 -3.5 L 0 5 A 4.2 4.2 0 0 1 -8.4 5 L -8.4 2.5 L -6.4 4.2"/>
+            </g>
+
+            <!-- 中央張力百分比數字 -->
+            <text id="tension-pct-text" x="96" y="103" text-anchor="middle" font-size="25" font-weight="900" fill="#4ade80">18%</text>
+            <text id="tension-sub-text" x="96" y="122" text-anchor="middle" font-size="10.5" font-weight="800" letter-spacing="1" fill="#94a3b8">TENSION</text>
+
+            <!-- 動態指示游標 -->
+            <g id="tension-pointer" transform="translate(96, 94) rotate(-68)">
+                <polygon points="0,-63 -5.5,-83 5.5,-83" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+            </g>
+        </svg>
+    </div>
+
+    <!-- 底部固定高對比主操作區 -->
+    <div id="bottom-controls">
+        <div id="cast-power-bar" class="hidden">
+            <div id="cast-power-fill"></div>
+        </div>
+        <div class="btn-row">
+            <button id="btn-steer-left" class="hidden glass-panel steer-btn">◀ 向左拉竿</button>
+            <button id="btn-main-action">拋竿垂釣（按住蓄力）</button>
+            <button id="btn-steer-right" class="hidden glass-panel steer-btn">向右拉竿 ▶</button>
+        </div>
+    </div>
+
+    <!-- 起魚控魚器垂直懸吊特寫資料卡 -->
+    <div id="catch-card" class="hidden glass-panel">
+        <div id="catch-rarity" class="rarity-pill">溪潭常見</div>
+        <div id="catch-name" class="catch-name">花身鯻</div>
+        <div id="catch-sub" class="catch-sub">Terapon jarbua・俗稱：花身仔 / 三抓仔</div>
+        <div class="catch-metrics">
+            <div class="metric-box">
+                <div class="metric-label">實測體長</div>
+                <div id="catch-length" class="metric-val">28.5 cm</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">實測重量</div>
+                <div id="catch-weight" class="metric-val">0.46 kg</div>
+            </div>
+        </div>
+        <div id="catch-desc" class="catch-desc">體側具有三條顯著的深褐色向下彎曲弧形縱帶，尾鰭具斜向黑帶，活力極強。</div>
+        <div id="catch-sync-status" class="catch-sync-status">✅ 已同步至雲端圖鑑</div>
+    </div>
+
+    <!-- 洄遊吧 12 種台灣魚類圖鑑彈窗 -->
+    <div id="dex-modal" class="hidden">
+        <div class="dex-window glass-panel">
+            <div class="dex-header">
+                <div>
+                    <div class="dex-title">台灣實境魚類圖鑑（參考洄遊吧 FishBar）</div>
+                    <div id="dex-progress-text" class="dex-sub">已收錄 0 / 12 種台灣溪海魚類</div>
+                </div>
+                <button id="btn-close-dex">關閉圖鑑</button>
+            </div>
+            <div id="dex-grid" class="dex-grid"></div>
+        </div>
+    </div>
+
+    <!-- 學號綁定彈窗 -->
+    <div id="bind-modal" class="hidden">
+        <div class="bind-window glass-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:17px;font-weight:900;">🎓 綁定學號留存釣魚圖鑑</div>
+                <button id="btn-close-bind" style="background:rgba(255,255,255,0.14);color:#fff;padding:5px 10px;border-radius:999px;font-weight:800;">✕</button>
+            </div>
+            <p style="font-size:12px;color:#cbd5e1;line-height:1.5;">
+                輸入您的佛光大學學號後，系統會自動從 Google 試算表載入您過去的釣魚圖鑑紀錄，之後每次起魚也會永久留存！
+            </p>
+            <input id="bind-sid-input" class="bind-input" type="text" maxlength="10" placeholder="請輸入學號（如 112175101）" />
+            <div id="bind-err-text" class="hidden" style="font-size:12px;color:#fb7185;font-weight:800;">⚠️ 請輸入 7 到 10 碼英數字學號。</div>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+                <button id="btn-unbind-visitor" style="flex:1;padding:10px;border-radius:12px;background:rgba(255,255,255,0.12);color:#e2e8f0;font-weight:800;font-size:13px;">切換為訪客</button>
+                <button id="btn-confirm-bind" style="flex:1;padding:10px;border-radius:12px;background:linear-gradient(135deg,#0284c7,#10b981);color:#fff;font-weight:900;font-size:13px;">確認綁定並載入</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==================== 0. 學號綁定與 Google 試算表雲端圖鑑同步 ==================== */
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUJjAYpBxqx7CJHAEil7-BJtnU_4D9R0MS0Cli6SeNDxLeBp60PZ-L_nCii1breC22bQ/exec';
+        const ISLAND_SESSION_KEY = 'fgu_econ_island_session_v1';
+
+        const studentSession = {
+            role: 'visitor',
+            fullId: '',
+            last3: '',
+            grade: '',
+            displayName: '',
+            syncState: 'guest'
+        };
+
+        function readMainIslandSession() {
+            try {
+                const raw = sessionStorage.getItem(ISLAND_SESSION_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.role === 'student' && (parsed.fullId || parsed.last3)) {
+                        studentSession.role = 'student';
+                        studentSession.fullId = String(parsed.fullId || '').toUpperCase();
+                        studentSession.last3 = parsed.last3 || studentSession.fullId.slice(-3);
+                        studentSession.grade = parsed.grade || '在校生';
+                        studentSession.displayName = parsed.displayName || '';
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function updateStudentBindUI() {
+            const btn = document.getElementById('btn-student-bind');
+            const label = document.getElementById('student-bind-label');
+            if (!btn || !label) return;
+            if (studentSession.role === 'student' && studentSession.fullId) {
+                btn.classList.add('student-pill-active');
+                const namePart = studentSession.displayName ? ` ${studentSession.displayName}` : '';
+                const syncIcon = studentSession.syncState === 'loading' ? '⏳' : '☁️';
+                label.textContent = `${syncIcon} ${studentSession.fullId}${namePart}`;
+            } else {
+                btn.classList.remove('student-pill-active');
+                label.textContent = '🎒 訪客（點此綁定學號）';
+            }
+        }
+
+        async function loadCloudFishingDex() {
+            if (studentSession.role !== 'student' || !studentSession.fullId) {
+                studentSession.syncState = 'guest';
+                updateStudentBindUI();
+                return;
+            }
+            studentSession.syncState = 'loading';
+            updateStudentBindUI();
+            try {
+                const url = `${APPS_SCRIPT_URL}?action=getFishingDex&studentId=${encodeURIComponent(studentSession.fullId)}&t=${Date.now()}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data && data.status === 'ok' && data.records) {
+                    Object.keys(data.records).forEach(fishId => {
+                        const cloudRec = data.records[fishId];
+                        const localRec = game.records[fishId];
+                        if (!localRec) {
+                            game.records[fishId] = {
+                                count: Number(cloudRec.count) || 1,
+                                maxLen: Number(cloudRec.maxLen) || 0,
+                                maxWt: Number(cloudRec.maxWt) || 0
+                            };
+                        } else {
+                            localRec.count = Math.max(localRec.count, Number(cloudRec.count) || 1);
+                            localRec.maxLen = Math.max(localRec.maxLen, Number(cloudRec.maxLen) || 0);
+                            localRec.maxWt = Math.max(localRec.maxWt, Number(cloudRec.maxWt) || 0);
+                        }
+                    });
+                    updateDexBadge();
+                    if (!document.getElementById('dex-modal').classList.contains('hidden')) {
+                        renderDexModal();
+                    }
+                }
+                studentSession.syncState = 'synced';
+            } catch (e) {
+                studentSession.syncState = 'error';
+            }
+            updateStudentBindUI();
+        }
+
+        async function saveCatchToCloud(species, lengthCm, weightKg) {
+            const statusEl = document.getElementById('catch-sync-status');
+            if (studentSession.role !== 'student' || !studentSession.fullId) {
+                if (statusEl) {
+                    statusEl.style.background = 'rgba(245, 158, 11, 0.18)';
+                    statusEl.style.borderColor = 'rgba(251, 191, 36, 0.45)';
+                    statusEl.style.color = '#fde047';
+                    statusEl.textContent = '💡 訪客模式僅本次暫存，點上方「綁定學號」可永久留存圖鑑';
+                }
+                return;
+            }
+            if (statusEl) {
+                statusEl.style.background = 'rgba(14, 165, 233, 0.18)';
+                statusEl.style.borderColor = 'rgba(56, 189, 248, 0.45)';
+                statusEl.style.color = '#7dd3fc';
+                statusEl.textContent = `⏳ 正在將紀錄寫入學號 ${studentSession.fullId} 的雲端圖鑑...`;
+            }
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        source: 'fgu_island_fishing',
+                        studentId: studentSession.fullId,
+                        grade: studentSession.grade,
+                        name: studentSession.displayName,
+                        fishId: species.id,
+                        fishName: species.name,
+                        lengthCm: lengthCm,
+                        weightKg: weightKg
+                    })
+                });
+                if (statusEl) {
+                    statusEl.style.background = 'rgba(16, 185, 129, 0.18)';
+                    statusEl.style.borderColor = 'rgba(52, 211, 153, 0.45)';
+                    statusEl.style.color = '#6ee7b7';
+                    statusEl.textContent = `✅ 已永久留存至學號 ${studentSession.fullId} 的釣魚圖鑑！`;
+                }
+            } catch (e) {
+                if (statusEl) {
+                    statusEl.textContent = '⚠️ 雲端同步暫時失敗，已先保留於本機畫面';
+                }
+            }
+        }
+
+        /* ==================== 1. Web Audio 擬真音效合成器（零外部音檔依賴） ==================== */
+        const SoundFX = (() => {
+            let ctx = null;
+            function ensureCtx() {
+                if (!ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) ctx = new AudioCtx();
+                }
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().catch(() => {});
+                }
+                return ctx;
+            }
+            function playCast() {
+                const c = ensureCtx();
+                if (!c) return;
+                const osc = c.createOscillator();
+                const gain = c.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(220, c.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(580, c.currentTime + 0.16);
+                osc.frequency.exponentialRampToValueAtTime(140, c.currentTime + 0.34);
+                gain.gain.setValueAtTime(0.14, c.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(c.destination);
+                osc.start();
+                osc.stop(c.currentTime + 0.36);
+            }
+            function playSplash() {
+                const c = ensureCtx();
+                if (!c) return;
+                const bufSize = Math.floor(c.sampleRate * 0.25);
+                const buf = c.createBuffer(1, bufSize, c.sampleRate);
+                const data = buf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.32));
+                }
+                const src = c.createBufferSource();
+                src.buffer = buf;
+                const filter = c.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 650;
+                const gain = c.createGain();
+                gain.gain.value = 0.2;
+                src.connect(filter);
+                filter.connect(gain);
+                gain.connect(c.destination);
+                src.start();
+            }
+            function playBite() {
+                const c = ensureCtx();
+                if (!c) return;
+                [0, 0.11].forEach((offset, idx) => {
+                    const osc = c.createOscillator();
+                    const gain = c.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(idx === 0 ? 780 : 1040, c.currentTime + offset);
+                    gain.gain.setValueAtTime(0.18, c.currentTime + offset);
+                    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + offset + 0.1);
+                    osc.connect(gain);
+                    gain.connect(c.destination);
+                    osc.start(c.currentTime + offset);
+                    osc.stop(c.currentTime + offset + 0.11);
+                });
+            }
+            let lastTick = 0;
+            function playReelClick(isDragOut) {
+                const c = ensureCtx();
+                if (!c) return;
+                const now = c.currentTime;
+                if (now - lastTick < (isDragOut ? 0.045 : 0.07)) return;
+                lastTick = now;
+                const osc = c.createOscillator();
+                const gain = c.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(isDragOut ? 1420 : 880, now);
+                gain.gain.setValueAtTime(isDragOut ? 0.07 : 0.04, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+                osc.connect(gain);
+                gain.connect(c.destination);
+                osc.start(now);
+                osc.stop(now + 0.03);
+            }
+            function playCatch() {
+                const c = ensureCtx();
+                if (!c) return;
+                [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+                    const osc = c.createOscillator();
+                    const gain = c.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, c.currentTime + i * 0.08);
+                    gain.gain.setValueAtTime(0.14, c.currentTime + i * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.28);
+                    osc.connect(gain);
+                    gain.connect(c.destination);
+                    osc.start(c.currentTime + i * 0.08);
+                    osc.stop(c.currentTime + i * 0.08 + 0.3);
+                });
+            }
+            return { playCast, playSplash, playBite, playReelClick, playCatch };
+        })();
+
+        /* ==================== 2. 12 種台灣特色寫實魚種資料庫（參考洄遊吧 FishBar 圖鑑） ==================== */
+        const FISH_SPECIES = [
+            // --- 山谷溪潭 / 河口 ---
+            {
+                id: 'terapon',
+                loc: 'stream',
+                name: '花身鯻',
+                sci: 'Terapon jarbua',
+                alias: '花身仔 / 三抓仔',
+                rarity: '溪潭常見',
+                rarityColor: '#34d399',
+                minLen: 18, maxLen: 34,
+                minWt: 0.18, maxWt: 0.72,
+                power: 1.0, stamina: 75,
+                bodyRatio: 0.33,
+                backColor: '#5c6b58', midColor: '#cbd5e1', bellyColor: '#f8fafc',
+                finColor: '#d97706', pattern: 'three_arcs',
+                desc: '銀白魚身側面有 3 條顯著的深褐色向下彎曲弧形縱帶，尾鰭具斜向黑紋，掠食性強。'
+            },
+            {
+                id: 'mullet',
+                loc: 'stream',
+                name: '鯔',
+                sci: 'Mugil cephalus',
+                alias: '烏魚 / 正烏',
+                rarity: '洄游名物',
+                rarityColor: '#38bdf8',
+                minLen: 32, maxLen: 58,
+                minWt: 0.55, maxWt: 2.45,
+                power: 1.25, stamina: 95,
+                bodyRatio: 0.25,
+                backColor: '#334155', midColor: '#94a3b8', bellyColor: '#f1f5f9',
+                finColor: '#64748b', pattern: 'mullet_stripes',
+                desc: '頭扁平、眼具發達透明脂肪眼瞼，體側有細密暗色縱線，胸鰭基部帶藍黑色斑點。'
+            },
+            {
+                id: 'croaker',
+                loc: 'stream',
+                name: '大頭白姑魚',
+                sci: 'Pennahia macrocephalus',
+                alias: '帕頭仔 / 加網',
+                rarity: '溪口珍味',
+                rarityColor: '#38bdf8',
+                minLen: 22, maxLen: 38,
+                minWt: 0.25, maxWt: 0.95,
+                power: 1.1, stamina: 82,
+                bodyRatio: 0.32,
+                backColor: '#856d47', midColor: '#e2d1a8', bellyColor: '#fefce8',
+                finColor: '#eab308', pattern: 'golden_sheen',
+                desc: '頭部比例較大且圓鈍，全身散發淡金黃色珍珠光澤，背鰭與尾鰭呈暖黃色。'
+            },
+            {
+                id: 'butterfish',
+                loc: 'stream',
+                name: '刺鯧',
+                sci: 'Psenopsis anomala',
+                alias: '肉鯽仔 / 肉魚',
+                rarity: '稀有漁獲',
+                rarityColor: '#fbbf24',
+                minLen: 18, maxLen: 30,
+                minWt: 0.22, maxWt: 0.68,
+                power: 1.15, stamina: 85,
+                bodyRatio: 0.46,
+                backColor: '#64748b', midColor: '#cbd5e1', bellyColor: '#f8fafc',
+                finColor: '#94a3b8', pattern: 'gill_spot',
+                desc: '體型呈卵圓形且極為側扁，吻端圓鈍，鰓蓋後上方具有一塊明顯的圓形暗色斑塊。'
+            },
+
+            // --- 岩岸磯釣 ---
+            {
+                id: 'rudderfish',
+                loc: 'shore',
+                name: '低鰭舵魚',
+                sci: 'Kyphosus vaigiensis',
+                alias: '白毛 / 開基',
+                rarity: '磯釣名物',
+                rarityColor: '#34d399',
+                minLen: 28, maxLen: 52,
+                minWt: 0.55, maxWt: 2.30,
+                power: 1.45, stamina: 112,
+                bodyRatio: 0.38,
+                backColor: '#475569', midColor: '#94a3b8', bellyColor: '#e2e8f0',
+                finColor: '#475569', pattern: 'gold_lines',
+                desc: '磯釣客最愛的強勁對手，銀灰體側鑲有多條細密金褐色縱紋，瞬間衝刺爆發力十足。'
+            },
+            {
+                id: 'grunt',
+                loc: 'shore',
+                name: '星雞魚',
+                sci: 'Pomadasys kaakan',
+                alias: '石鱸 / 雞仔魚',
+                rarity: '岩岸常見',
+                rarityColor: '#34d399',
+                minLen: 26, maxLen: 48,
+                minWt: 0.45, maxWt: 1.95,
+                power: 1.3, stamina: 98,
+                bodyRatio: 0.35,
+                backColor: '#57534e', midColor: '#d6d3d1', bellyColor: '#fafaf9',
+                finColor: '#a8a29e', pattern: 'star_dots',
+                desc: '體背側分布數列排列整齊的深褐色星點斑紋，背鰭硬棘強壯，常棲息於岩礁沙泥交界。'
+            },
+            {
+                id: 'yellowback_bream',
+                loc: 'shore',
+                name: '黃背牙鯛',
+                sci: 'Dentex hypselosomus',
+                alias: '赤鯮 / 連子鯛',
+                rarity: '岩礁珍品',
+                rarityColor: '#38bdf8',
+                minLen: 24, maxLen: 42,
+                minWt: 0.40, maxWt: 1.65,
+                power: 1.35, stamina: 105,
+                bodyRatio: 0.40,
+                backColor: '#dc2626', midColor: '#fb7185', bellyColor: '#fff1f2',
+                finColor: '#f43f5e', pattern: 'red_gold_band',
+                desc: '魚身呈現亮麗的橘紅色，背鰭基部下方有三塊鮮明的金黃色雲狀斑塊，色澤極為耀眼。'
+            },
+            {
+                id: 'scad_trevally',
+                loc: 'shore',
+                name: '吉打副葉鰺',
+                sci: 'Alepes djedaba',
+                alias: '瓜仔魚 / 花鯧',
+                rarity: '沿岸迴游',
+                rarityColor: '#fbbf24',
+                minLen: 25, maxLen: 40,
+                minWt: 0.35, maxWt: 1.25,
+                power: 1.4, stamina: 100,
+                bodyRatio: 0.31,
+                backColor: '#1e3a8a', midColor: '#93c5fd', bellyColor: '#f8fafc',
+                finColor: '#eab308', pattern: 'operculum_spot',
+                desc: '體背藍綠、腹部銀白，鰓蓋後上緣有一顆醒目的黑色圓斑，尾鰭呈亮黃色。'
+            },
+
+            // --- 遠洋船釣 ---
+            {
+                id: 'papuan_trevally',
+                loc: 'ocean',
+                name: '巴布亞鰺',
+                sci: 'Caranx papuensis',
+                alias: '點甘 / 瓜仔',
+                rarity: '外海掠食者',
+                rarityColor: '#38bdf8',
+                minLen: 42, maxLen: 78,
+                minWt: 1.50, maxWt: 6.80,
+                power: 1.65, stamina: 130,
+                bodyRatio: 0.36,
+                backColor: '#1e40af', midColor: '#cbd5e1', bellyColor: '#f8fafc',
+                finColor: '#84cc16', pattern: 'black_speckles',
+                desc: '銀亮體側散落不規則的小黑點，鰓蓋上緣具小白點與黑斑，尾鰭下葉帶鮮明黃綠色。'
+            },
+            {
+                id: 'giant_trevally',
+                loc: 'ocean',
+                name: '浪人鰺',
+                sci: 'Caranx ignobilis',
+                alias: '牛港鰺 / GT',
+                rarity: '巨物傳說',
+                rarityColor: '#f97316',
+                minLen: 68, maxLen: 128,
+                minWt: 5.80, maxWt: 28.50,
+                power: 2.05, stamina: 168,
+                bodyRatio: 0.38,
+                backColor: '#334155', midColor: '#94a3b8', bellyColor: '#f1f5f9',
+                finColor: '#475569', pattern: 'gt_scutes',
+                desc: '頭部輪廓陡峭渾圓、額頭厚實，尾柄兩側具強硬黑色稜鱗，是海釣界夢寐以求的暴力巨物。'
+            },
+            {
+                id: 'mahi_mahi',
+                loc: 'ocean',
+                name: '鬼頭刀',
+                sci: 'Coryphaena hippurus',
+                alias: '飛烏虎 / 鱰魚',
+                rarity: '黑潮悍將',
+                rarityColor: '#fbbf24',
+                minLen: 65, maxLen: 125,
+                minWt: 3.40, maxWt: 16.50,
+                power: 1.85, stamina: 145,
+                bodyRatio: 0.26,
+                backColor: '#0284c7', midColor: '#eab308', bellyColor: '#fef08a',
+                finColor: '#0ea5e9', pattern: 'mahi_dots',
+                desc: '背鰭從頭頂一路延伸至尾柄，電光藍綠背脊與金黃側腹交織寶藍色星點，中鉤後會躍出水面。'
+            },
+            {
+                id: 'yellowfin_tuna',
+                loc: 'ocean',
+                name: '黃鰭鮪魚',
+                sci: 'Thunnus albacares',
+                alias: '串仔 / 黃鰭鮪',
+                rarity: '深藍王者',
+                rarityColor: '#f97316',
+                minLen: 75, maxLen: 145,
+                minWt: 7.20, maxWt: 36.00,
+                power: 2.15, stamina: 178,
+                bodyRatio: 0.29,
+                backColor: '#0f172a', midColor: '#3b82f6', bellyColor: '#f8fafc',
+                finColor: '#facc15', pattern: 'tuna_finlets',
+                desc: '流線型紡錘軀體，第二背鰭與臀鰭呈鮮黃色長鐮刀狀，尾柄上下排滿金黃色小離鰭。'
+            }
+        ];
+
+        /* ==================== 3. 寫實魚體生物繪圖引擎（支援水平圖鑑與垂直控魚器懸吊） ==================== */
+        function drawRealisticFish(ctx, species, lengthPx, isVertical) {
+            ctx.save();
+            if (isVertical) {
+                // 垂直懸吊：魚頭朝上（-Y），魚尾朝下（+Y）
+                ctx.rotate(-Math.PI / 2);
+            }
+
+            const L = lengthPx;
+            const halfL = L * 0.5;
+            const H = L * species.bodyRatio;
+            const halfH = H * 0.5;
+
+            // 1. 背鰭與臀鰭（先繪製於魚身後方）
+            ctx.save();
+            if (species.id === 'mahi_mahi') {
+                // 鬼頭刀長背鰭
+                const dGrad = ctx.createLinearGradient(0, -halfH * 1.45, 0, -halfH * 0.5);
+                dGrad.addColorStop(0, '#0284c7');
+                dGrad.addColorStop(1, '#10b981');
+                ctx.fillStyle = dGrad;
+                ctx.beginPath();
+                ctx.moveTo(halfL * 0.68, -halfH * 0.72);
+                ctx.quadraticCurveTo(halfL * 0.1, -halfH * 1.48, -halfL * 0.65, -halfH * 0.48);
+                ctx.lineTo(-halfL * 0.65, -halfH * 0.18);
+                ctx.closePath();
+                ctx.fill();
+            } else if (species.id === 'yellowfin_tuna') {
+                // 黃鰭鮪鐮刀狀第二背鰭與小離鰭
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.moveTo(-halfL * 0.05, -halfH * 0.65);
+                ctx.quadraticCurveTo(-halfL * 0.25, -halfH * 1.55, -halfL * 0.36, -halfH * 1.48);
+                ctx.quadraticCurveTo(-halfL * 0.22, -halfH * 0.85, -halfL * 0.22, -halfH * 0.52);
+                ctx.closePath();
+                ctx.fill();
+                // 臀鰭鐮刀
+                ctx.beginPath();
+                ctx.moveTo(-halfL * 0.08, halfH * 0.62);
+                ctx.quadraticCurveTo(-halfL * 0.26, halfH * 1.50, -halfL * 0.37, halfH * 1.42);
+                ctx.quadraticCurveTo(-halfL * 0.23, halfH * 0.82, -halfL * 0.23, halfH * 0.48);
+                ctx.closePath();
+                ctx.fill();
+                // 尾柄黃色小離鰭
+                for (let k = 0; k < 6; k++) {
+                    const fx = -halfL * (0.34 + k * 0.075);
+                    const fy = halfH * (0.42 - k * 0.045);
+                    ctx.beginPath();
+                    ctx.moveTo(fx, -fy);
+                    ctx.lineTo(fx - 5, -fy - 7);
+                    ctx.lineTo(fx - 7, -fy);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(fx, fy);
+                    ctx.lineTo(fx - 5, fy + 7);
+                    ctx.lineTo(fx - 7, fy);
+                    ctx.fill();
+                }
+            } else {
+                // 一般硬棘背鰭與臀鰭
+                ctx.fillStyle = species.finColor;
+                ctx.globalAlpha = 0.88;
+                ctx.beginPath();
+                ctx.moveTo(halfL * 0.28, -halfH * 0.72);
+                ctx.quadraticCurveTo(0, -halfH * 1.32, -halfL * 0.46, -halfH * 0.42);
+                ctx.lineTo(-halfL * 0.42, -halfH * 0.18);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(-halfL * 0.05, halfH * 0.68);
+                ctx.quadraticCurveTo(-halfL * 0.25, halfH * 1.18, -halfL * 0.48, halfH * 0.38);
+                ctx.lineTo(-halfL * 0.42, halfH * 0.16);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 2. 尾鰭（新月形或叉形）
+            ctx.save();
+            const tailGrad = ctx.createLinearGradient(-halfL * 0.65, 0, -halfL * 1.06, 0);
+            tailGrad.addColorStop(0, species.backColor);
+            tailGrad.addColorStop(1, species.finColor);
+            ctx.fillStyle = tailGrad;
+            ctx.beginPath();
+            ctx.moveTo(-halfL * 0.68, -halfH * 0.18);
+            ctx.quadraticCurveTo(-halfL * 0.88, -halfH * 0.62, -halfL * 1.04, -halfH * 0.82);
+            ctx.quadraticCurveTo(-halfL * 0.88, 0, -halfL * 1.04, halfH * 0.82);
+            ctx.quadraticCurveTo(-halfL * 0.88, halfH * 0.62, -halfL * 0.68, halfH * 0.18);
+            ctx.closePath();
+            ctx.fill();
+            // 尾鰭放射鰭條
+            ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+            ctx.lineWidth = 1;
+            for (let r = -3; r <= 3; r++) {
+                ctx.beginPath();
+                ctx.moveTo(-halfL * 0.72, r * halfH * 0.04);
+                ctx.lineTo(-halfL * 0.99, r * halfH * 0.22);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 3. 魚身主輪廓與金屬光澤漸層
+            ctx.save();
+            ctx.beginPath();
+            if (species.id === 'giant_trevally' || species.id === 'mahi_mahi') {
+                // 陡峭額頭輪廓
+                ctx.moveTo(halfL * 0.86, halfH * 0.08);
+                ctx.quadraticCurveTo(halfL * 0.84, -halfH * 0.65, halfL * 0.42, -halfH * 0.84);
+                ctx.quadraticCurveTo(-halfL * 0.15, -halfH * 0.88, -halfL * 0.72, -halfH * 0.16);
+                ctx.lineTo(-halfL * 0.72, halfH * 0.16);
+                ctx.quadraticCurveTo(-halfL * 0.15, halfH * 0.88, halfL * 0.48, halfH * 0.72);
+                ctx.quadraticCurveTo(halfL * 0.78, halfH * 0.45, halfL * 0.86, halfH * 0.08);
+            } else {
+                // 經典流線紡錘魚體
+                ctx.moveTo(halfL * 0.88, 0);
+                ctx.quadraticCurveTo(halfL * 0.55, -halfH * 0.86, 0, -halfH * 0.88);
+                ctx.quadraticCurveTo(-halfL * 0.45, -halfH * 0.72, -halfL * 0.72, -halfH * 0.16);
+                ctx.lineTo(-halfL * 0.72, halfH * 0.16);
+                ctx.quadraticCurveTo(-halfL * 0.45, halfH * 0.72, 0, halfH * 0.88);
+                ctx.quadraticCurveTo(halfL * 0.55, halfH * 0.86, halfL * 0.88, 0);
+            }
+            ctx.closePath();
+
+            const bodyGrad = ctx.createLinearGradient(0, -halfH * 0.9, 0, halfH * 0.9);
+            bodyGrad.addColorStop(0, species.backColor);
+            bodyGrad.addColorStop(0.46, species.midColor);
+            bodyGrad.addColorStop(1, species.bellyColor);
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+
+            // 限制後續紋理在魚身內
+            ctx.clip();
+
+            // 細膩魚鱗光澤網紋
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+            ctx.lineWidth = 0.85;
+            const stepX = Math.max(7, L * 0.042);
+            const stepY = Math.max(6, H * 0.12);
+            for (let sx = -halfL * 0.65; sx < halfL * 0.45; sx += stepX) {
+                for (let sy = -halfH * 0.75; sy < halfH * 0.75; sy += stepY) {
+                    const offset = (Math.round(sy / stepY) % 2) * (stepX * 0.5);
+                    ctx.beginPath();
+                    ctx.arc(sx + offset, sy, stepX * 0.52, -Math.PI * 0.42, Math.PI * 0.42);
+                    ctx.stroke();
+                }
+            }
+
+            // 4. 各魚種專屬生物特徵斑紋（洄遊吧圖鑑特徵）
+            if (species.pattern === 'three_arcs') {
+                // 花身鯻：三條向下彎曲深褐色弧帶
+                ctx.strokeStyle = 'rgba(69, 39, 18, 0.82)';
+                ctx.lineWidth = Math.max(3, H * 0.085);
+                for (let a = 0; a < 3; a++) {
+                    ctx.beginPath();
+                    ctx.moveTo(halfL * (0.34 - a * 0.14), -halfH * 0.82);
+                    ctx.quadraticCurveTo(-halfL * 0.05, halfH * (0.05 - a * 0.16), -halfL * 0.66, -halfH * (0.12 + a * 0.08));
+                    ctx.stroke();
+                }
+            } else if (species.pattern === 'mullet_stripes') {
+                // 烏魚：細密暗色縱線
+                ctx.strokeStyle = 'rgba(30, 41, 59, 0.35)';
+                ctx.lineWidth = 1.4;
+                for (let s = -4; s <= 3; s++) {
+                    ctx.beginPath();
+                    ctx.moveTo(halfL * 0.42, s * halfH * 0.16);
+                    ctx.lineTo(-halfL * 0.65, s * halfH * 0.12);
+                    ctx.stroke();
+                }
+            } else if (species.pattern === 'gill_spot') {
+                // 刺鯧：鰓蓋後方圓形黑斑
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                ctx.beginPath();
+                ctx.arc(halfL * 0.34, -halfH * 0.12, H * 0.13, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (species.pattern === 'gold_lines') {
+                // 白毛：金褐色細密縱線
+                ctx.strokeStyle = 'rgba(180, 120, 30, 0.45)';
+                ctx.lineWidth = 1.6;
+                for (let s = -4; s <= 4; s++) {
+                    ctx.beginPath();
+                    ctx.moveTo(halfL * 0.45, s * halfH * 0.15);
+                    ctx.lineTo(-halfL * 0.64, s * halfH * 0.11);
+                    ctx.stroke();
+                }
+            } else if (species.pattern === 'star_dots') {
+                // 星雞魚：整齊排列深褐色星點
+                ctx.fillStyle = 'rgba(68, 44, 24, 0.72)';
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        const dx = halfL * 0.32 - col * (L * 0.09);
+                        const dy = -halfH * 0.55 + row * (H * 0.15);
+                        ctx.beginPath();
+                        ctx.arc(dx, dy, Math.max(1.8, L * 0.011), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            } else if (species.pattern === 'red_gold_band') {
+                // 赤鯮：背鰭下方三塊金黃雲狀斑
+                ctx.fillStyle = 'rgba(250, 204, 21, 0.72)';
+                [0.24, 0.0, -0.24].forEach(bx => {
+                    ctx.beginPath();
+                    ctx.ellipse(halfL * bx, -halfH * 0.42, L * 0.065, H * 0.13, -0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            } else if (species.pattern === 'operculum_spot') {
+                // 吉打副葉鰺：鰓蓋上緣黑圓斑
+                ctx.fillStyle = '#090d16';
+                ctx.beginPath();
+                ctx.arc(halfL * 0.44, -halfH * 0.15, H * 0.11, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (species.pattern === 'black_speckles') {
+                // 巴布亞鰺：散落小黑點
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+                const pts = [[0.2, -0.2], [0.05, 0.12], [-0.12, -0.25], [-0.25, 0.08], [0.12, 0.24], [-0.35, -0.1], [0.28, 0.05]];
+                pts.forEach(([px, py]) => {
+                    ctx.beginPath();
+                    ctx.arc(halfL * px, halfH * py, Math.max(2, L * 0.012), 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            } else if (species.pattern === 'gt_scutes') {
+                // 牛港鰺：尾柄強硬稜鱗刻痕
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.7)';
+                ctx.lineWidth = 2;
+                for (let k = 0; k < 7; k++) {
+                    const kx = -halfL * (0.36 + k * 0.048);
+                    ctx.beginPath();
+                    ctx.moveTo(kx, -halfH * 0.08);
+                    ctx.lineTo(kx - 4, 0);
+                    ctx.lineTo(kx, halfH * 0.08);
+                    ctx.stroke();
+                }
+            } else if (species.pattern === 'mahi_dots') {
+                // 鬼頭刀：寶藍色星點
+                ctx.fillStyle = '#1d4ed8';
+                for (let i = 0; i < 14; i++) {
+                    const mx = halfL * (0.38 - i * 0.068);
+                    const my = Math.sin(i * 1.9) * halfH * 0.36;
+                    ctx.beginPath();
+                    ctx.arc(mx, my, Math.max(2, L * 0.013), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 側線高光弧線
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.36)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(halfL * 0.44, -halfH * 0.14);
+            ctx.quadraticCurveTo(halfL * 0.1, -halfH * 0.28, -halfL * 0.68, 0);
+            ctx.stroke();
+
+            // 腹部自然高光
+            const bellySheen = ctx.createLinearGradient(0, halfH * 0.15, 0, halfH * 0.85);
+            bellySheen.addColorStop(0, 'rgba(255,255,255,0)');
+            bellySheen.addColorStop(1, 'rgba(255,255,255,0.45)');
+            ctx.fillStyle = bellySheen;
+            ctx.fillRect(-halfL, 0, L * 2, halfH);
+
+            ctx.restore(); // 結束 clip
+
+            // 5. 鰓蓋弧線與胸鰭
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)';
+            ctx.lineWidth = Math.max(1.6, L * 0.008);
+            ctx.beginPath();
+            ctx.arc(halfL * 0.44, 0, halfH * 0.54, -Math.PI * 0.36, Math.PI * 0.38);
+            ctx.stroke();
+
+            // 立體半透明胸鰭
+            ctx.save();
+            ctx.fillStyle = species.finColor;
+            ctx.globalAlpha = 0.82;
+            ctx.beginPath();
+            ctx.moveTo(halfL * 0.36, halfH * 0.16);
+            ctx.quadraticCurveTo(halfL * 0.12, halfH * 0.56, halfL * 0.02, halfH * 0.48);
+            ctx.quadraticCurveTo(halfL * 0.18, halfH * 0.24, halfL * 0.34, halfH * 0.12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // 6. 寫實眼睛（外虹膜＋深邃瞳孔＋角膜高光）
+            const eyeX = halfL * 0.62;
+            const eyeY = -halfH * 0.16;
+            const eyeR = Math.max(4.5, H * 0.13);
+            ctx.fillStyle = species.id === 'mullet' ? 'rgba(241, 245, 249, 0.92)' : '#eab308';
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.65)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#090d16';
+            ctx.beginPath();
+            ctx.arc(eyeX + eyeR * 0.08, eyeY, eyeR * 0.56, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(eyeX - eyeR * 0.24, eyeY - eyeR * 0.26, eyeR * 0.24, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 嘴裂線
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.72)';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(halfL * 0.87, halfH * 0.05);
+            ctx.lineTo(halfL * 0.71, halfH * 0.14);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        /* ==================== 4. 遊戲狀態與圖鑑紀錄 ==================== */
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const game = {
+            location: 'stream', // 'stream' | 'shore' | 'ocean'
+            phase: 'IDLE',      // 'IDLE' | 'CHARGING' | 'CASTING' | 'WAITING' | 'BITING' | 'FIGHTING' | 'SHOWCASE'
+            time: 0,
+            chargePower: 0,
+            chargeDir: 1,
+            castProgress: 0,
+            bobber: { x: 0.5, y: 0.62, startX: 0.56, startY: 0.51, targetX: 0.48, targetY: 0.60, splashTime: 0 },
+            waitTimer: 0,
+            biteTimer: 0,
+            rodYaw: 0,
+            targetRodYaw: 0,
+            rodBend: 0,
+            crankAngle: 0,
+            stowProgress: 0,
+            fight: {
+                species: null,
+                lengthCm: 0,
+                weightKg: 0,
+                dist: 24.0,
+                maxDist: 24.0,
+                tension: 18,
+                stamina: 100,
+                maxStamina: 100,
+                fishRunTimer: 0,
+                fishRunDir: 0,
+                reeling: false
+            },
+            records: {}
+        };
+
+        /* ==================== 5. 畫布自適應尺寸保底 ==================== */
+        function getViewSize() {
+            const w = window.innerWidth || document.documentElement.clientWidth || 1280;
+            const h = window.innerHeight || document.documentElement.clientHeight || 720;
+            return { w: Math.max(320, w), h: Math.max(320, h) };
+        }
+
+        function resizeCanvas() {
+            const { w, h } = getViewSize();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.floor(w * dpr);
+            canvas.height = Math.floor(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        /* ==================== 6. 左下角 18 格分段張力環初始化與即時更新 ==================== */
+        function buildGaugeSegments() {
+            const group = document.getElementById('gauge-segments-group');
+            if (!group) return;
+            group.innerHTML = '';
+            const total = 18;
+            const cx = 96, cy = 94, r = 74;
+            const startDeg = -64;
+            const endDeg = 172;
+            const stepDeg = (endDeg - startDeg) / total;
+
+            for (let i = 0; i < total; i++) {
+                const a1 = ((startDeg + i * stepDeg + 1.1) * Math.PI) / 180;
+                const a2 = ((startDeg + (i + 1) * stepDeg - 1.1) * Math.PI) / 180;
+                const x1 = cx + r * Math.sin(a1);
+                const y1 = cy - r * Math.cos(a1);
+                const x2 = cx + r * Math.sin(a2);
+                const y2 = cy - r * Math.cos(a2);
+
+                const ratio = i / (total - 1);
+                let color = '#10b981';
+                if (ratio > 0.72) color = '#f97316';
+                else if (ratio > 0.45) color = '#facc15';
+                else if (ratio > 0.22) color = '#4ade80';
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', color);
+                path.setAttribute('stroke-width', '17');
+                path.setAttribute('opacity', '0.22');
+                path.dataset.baseColor = color;
+                group.appendChild(path);
+            }
+        }
+        buildGaugeSegments();
+
+        function updateTensionUI(tensionPct) {
+            const clamped = Math.max(0, Math.min(100, tensionPct));
+            const rounded = Math.round(clamped);
+            const litCount = Math.max(1, Math.round((clamped / 100) * 18));
+
+            const group = document.getElementById('gauge-segments-group');
+            if (group) {
+                const segs = group.children;
+                for (let i = 0; i < segs.length; i++) {
+                    const active = i < litCount;
+                    segs[i].setAttribute('opacity', active ? '0.96' : '0.20');
+                }
+            }
+
+            const angle = -66 + (clamped / 100) * 238;
+            const ptr = document.getElementById('tension-pointer');
+            if (ptr) ptr.setAttribute('transform', `translate(96, 94) rotate(${angle.toFixed(1)})`);
+
+            const pctEl = document.getElementById('tension-pct-text');
+            if (pctEl) {
+                pctEl.textContent = `${rounded}%`;
+                pctEl.setAttribute('fill', rounded >= 76 ? '#fb923c' : (rounded >= 50 ? '#facc15' : '#4ade80'));
+            }
+
+            const subEl = document.getElementById('tension-sub-text');
+            if (subEl) {
+                if (game.phase === 'FIGHTING') {
+                    subEl.textContent = `${game.fight.dist.toFixed(1)} m`;
+                    subEl.setAttribute('fill', rounded >= 76 ? '#fb923c' : '#38bdf8');
+                } else {
+                    subEl.textContent = 'TENSION';
+                    subEl.setAttribute('fill', '#94a3b8');
+                }
+            }
+
+            const hud = document.getElementById('left-gauge-hud');
+            if (hud) {
+                hud.classList.toggle('danger-shake', game.phase === 'FIGHTING' && rounded >= 76);
+            }
+        }
+
+        /* ==================== 7. 三大寫實 3D 質感釣場背景繪製 ==================== */
+        function drawStreamScene(ctx, w, h, t) {
+            const horizonY = h * 0.50;
+
+            // 自然山谷天空微光
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+            skyGrad.addColorStop(0, '#93c5fd');
+            skyGrad.addColorStop(1, '#e0f2fe');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, horizonY);
+
+            // 遠方山林綠意
+            ctx.fillStyle = '#1e3f20';
+            ctx.beginPath();
+            ctx.moveTo(0, horizonY);
+            ctx.lineTo(0, h * 0.08);
+            ctx.quadraticCurveTo(w * 0.5, h * 0.16, w, h * 0.05);
+            ctx.lineTo(w, horizonY);
+            ctx.closePath();
+            ctx.fill();
+
+            // 左側裂紋與濕潤反光灰色花崗岩壁
+            const leftRockGrad = ctx.createLinearGradient(0, 0, w * 0.34, horizonY);
+            leftRockGrad.addColorStop(0, '#374151');
+            leftRockGrad.addColorStop(0.55, '#4b5563');
+            leftRockGrad.addColorStop(1, '#1f2937');
+            ctx.fillStyle = leftRockGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(w * 0.25, 0);
+            ctx.lineTo(w * 0.33, h * 0.26);
+            ctx.lineTo(w * 0.29, horizonY);
+            ctx.lineTo(0, horizonY);
+            ctx.closePath();
+            ctx.fill();
+
+            // 左岩壁節理裂紋與濕潤高光
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.58)';
+            ctx.lineWidth = 2.4;
+            for (let i = 0; i < 7; i++) {
+                ctx.beginPath();
+                ctx.moveTo(w * (0.02 + i * 0.038), h * 0.04);
+                ctx.lineTo(w * (0.05 + i * 0.036), h * 0.28);
+                ctx.lineTo(w * (0.03 + i * 0.04), horizonY - 4);
+                ctx.stroke();
+            }
+
+            // 右側層疊花崗岩峭壁
+            const rightRockGrad = ctx.createLinearGradient(w * 0.42, 0, w, horizonY);
+            rightRockGrad.addColorStop(0, '#4b5563');
+            rightRockGrad.addColorStop(0.45, '#6b7280');
+            rightRockGrad.addColorStop(1, '#374151');
+            ctx.fillStyle = rightRockGrad;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.42, 0);
+            ctx.lineTo(w, 0);
+            ctx.lineTo(w, horizonY);
+            ctx.lineTo(w * 0.45, horizonY);
+            ctx.lineTo(w * 0.41, h * 0.25);
+            ctx.closePath();
+            ctx.fill();
+
+            // 右岩壁立體節理面與濕潤高光
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+            ctx.beginPath();
+            ctx.moveTo(w * 0.62, h * 0.08);
+            ctx.lineTo(w * 0.85, h * 0.14);
+            ctx.lineTo(w * 0.76, h * 0.36);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.52)';
+            ctx.lineWidth = 2.2;
+            for (let j = 0; j < 9; j++) {
+                ctx.beginPath();
+                ctx.moveTo(w * (0.46 + j * 0.058), h * 0.03);
+                ctx.lineTo(w * (0.50 + j * 0.055), h * 0.26);
+                ctx.lineTo(w * (0.45 + j * 0.059), horizonY - 2);
+                ctx.stroke();
+            }
+
+            // 左上方兩段式動態瀑布（x ≈ 34%）
+            const wfX = w * 0.34;
+            const wfW = Math.max(36, w * 0.058);
+            // 上段瀑布
+            const wfGrad1 = ctx.createLinearGradient(wfX - wfW * 0.5, 0, wfX + wfW * 0.5, 0);
+            wfGrad1.addColorStop(0, 'rgba(226, 232, 240, 0.85)');
+            wfGrad1.addColorStop(0.5, '#ffffff');
+            wfGrad1.addColorStop(1, 'rgba(203, 213, 225, 0.88)');
+            ctx.fillStyle = wfGrad1;
+            ctx.beginPath();
+            ctx.moveTo(wfX - wfW * 0.36, h * 0.04);
+            ctx.lineTo(wfX + wfW * 0.36, h * 0.04);
+            ctx.lineTo(wfX + wfW * 0.52, h * 0.27);
+            ctx.lineTo(wfX - wfW * 0.48, h * 0.27);
+            ctx.closePath();
+            ctx.fill();
+
+            // 中段岩階轉折白沫
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.beginPath();
+            ctx.ellipse(wfX, h * 0.27, wfW * 0.65, 11, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 下段瀑布落入溪潭
+            ctx.fillStyle = wfGrad1;
+            ctx.beginPath();
+            ctx.moveTo(wfX - wfW * 0.52, h * 0.27);
+            ctx.lineTo(wfX + wfW * 0.55, h * 0.27);
+            ctx.lineTo(wfX + wfW * 0.72, horizonY + 3);
+            ctx.lineTo(wfX - wfW * 0.65, horizonY + 3);
+            ctx.closePath();
+            ctx.fill();
+
+            // 動態水絲紋理
+            ctx.strokeStyle = 'rgba(186, 230, 253, 0.75)';
+            ctx.lineWidth = 2;
+            const flowOffset = (t * 140) % 28;
+            for (let s = -2; s <= 2; s++) {
+                const sx = wfX + s * (wfW * 0.2);
+                ctx.beginPath();
+                ctx.setLineDash([14, 14]);
+                ctx.lineDashOffset = -flowOffset;
+                ctx.moveTo(sx, h * 0.05);
+                ctx.lineTo(sx * 1.01, horizonY);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            // 中央靠水際的鮮綠色灌木叢（x ≈ 52%）
+            const bushX = w * 0.52;
+            const bushY = horizonY - 4;
+            const bushClusters = [
+                [-26, -34, 34, '#15803d'],
+                [18, -38, 36, '#166534'],
+                [-4, -62, 42, '#16a34a'],
+                [-34, -18, 28, '#22c55e'],
+                [28, -20, 30, '#15803d'],
+                [0, -34, 38, '#22c55e'],
+                [-14, -84, 30, '#4ade80'],
+                [14, -76, 28, '#22c55e']
+            ];
+            bushClusters.forEach(([ox, oy, r, col]) => {
+                ctx.fillStyle = col;
+                ctx.beginPath();
+                ctx.arc(bushX + ox, bushY + oy, r * (w < 600 ? 0.72 : 1.0), 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 清澈藍綠色溪潭水面與透視溪底鵝卵石
+            const waterGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+            waterGrad.addColorStop(0, '#0f5c5c');
+            waterGrad.addColorStop(0.38, '#177572');
+            waterGrad.addColorStop(0.75, '#1d827e');
+            waterGrad.addColorStop(1, '#124e52');
+            ctx.fillStyle = waterGrad;
+            ctx.fillRect(0, horizonY, w, h - horizonY);
+
+            // 近處透視溪底鵝卵石床（半透明水底細節）
+            ctx.save();
+            for (let p = 0; p < 34; p++) {
+                const px = ((p * 197) % 100) * 0.01 * w;
+                const py = horizonY + (h - horizonY) * (0.28 + ((p * 73) % 70) * 0.01);
+                const rx = 14 + (p % 5) * 7;
+                const ry = rx * 0.45;
+                ctx.fillStyle = p % 2 === 0 ? 'rgba(20, 48, 46, 0.36)' : 'rgba(45, 82, 74, 0.32)';
+                ctx.beginPath();
+                ctx.ellipse(px, py, rx, ry, (p % 3) * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 灌木與岩壁在水面的綠色倒影
+            const refGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + (h - horizonY) * 0.48);
+            refGrad.addColorStop(0, 'rgba(22, 163, 74, 0.38)');
+            refGrad.addColorStop(1, 'rgba(22, 163, 74, 0)');
+            ctx.fillStyle = refGrad;
+            ctx.beginPath();
+            ctx.ellipse(bushX, horizonY + 35, 95, 55, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 瀑布落水點與溪潭露出岩石周圍的白色泡沫
+            const foamPulse = 1 + Math.sin(t * 3.5) * 0.06;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.beginPath();
+            ctx.ellipse(wfX, horizonY + 8, wfW * 1.15 * foamPulse, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 水面細碎動態波紋
+            ctx.strokeStyle = 'rgba(207, 250, 254, 0.24)';
+            ctx.lineWidth = 1.6;
+            for (let row = 0; row < 18; row++) {
+                const prog = row / 18;
+                const wy = horizonY + 12 + prog * prog * (h - horizonY - 16);
+                const amp = 2 + prog * 4;
+                const len = 36 + prog * 95;
+                for (let col = 0; col < 6; col++) {
+                    const wx = ((col * 0.19 + prog * 0.37 + t * 0.025) % 1.05) * w - 30;
+                    ctx.beginPath();
+                    ctx.moveTo(wx, wy);
+                    ctx.quadraticCurveTo(wx + len * 0.5, wy - amp * Math.sin(t * 2.5 + row + col), wx + len, wy);
+                    ctx.stroke();
+                }
+            }
+
+            // 溪潭中露出的寫實岩石與白沫（左前與右前）
+            drawWaterRock(ctx, w * 0.18, horizonY + (h - horizonY) * 0.16, 62, 26, t);
+            drawWaterRock(ctx, w * 0.74, horizonY + (h - horizonY) * 0.10, 38, 17, t + 1);
+            drawWaterRock(ctx, w * 0.81, horizonY + (h - horizonY) * 0.11, 28, 14, t + 2);
+        }
+
+        function drawWaterRock(ctx, x, y, rx, ry, t) {
+            // 岩石周圍白色泡沫
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+            ctx.beginPath();
+            ctx.ellipse(x, y + ry * 0.55, rx * (1.22 + Math.sin(t * 3) * 0.05), ry * 0.52, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 岩石本體
+            const rGrad = ctx.createLinearGradient(x, y - ry, x, y + ry);
+            rGrad.addColorStop(0, '#9ca3af');
+            rGrad.addColorStop(0.55, '#6b7280');
+            rGrad.addColorStop(1, '#374151');
+            ctx.fillStyle = rGrad;
+            ctx.beginPath();
+            ctx.moveTo(x - rx, y + ry * 0.35);
+            ctx.quadraticCurveTo(x - rx * 0.65, y - ry, x, y - ry * 0.9);
+            ctx.quadraticCurveTo(x + rx * 0.75, y - ry * 0.8, x + rx, y + ry * 0.35);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawShoreScene(ctx, w, h, t) {
+            const horizonY = h * 0.44;
+
+            // 晴朗海岸天空
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+            skyGrad.addColorStop(0, '#1d4ed8');
+            skyGrad.addColorStop(0.65, '#60a5fa');
+            skyGrad.addColorStop(1, '#dbeafe');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, horizonY);
+
+            // 遠方海岬與白色燈塔
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(w * 0.66, horizonY);
+            ctx.quadraticCurveTo(w * 0.76, horizonY - 26, w * 0.88, horizonY);
+            ctx.closePath();
+            ctx.fill();
+
+            const lhX = w * 0.77;
+            const lhY = horizonY - 18;
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(lhX - 4, lhY - 24, 8, 24);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(lhX - 5, lhY - 28, 10, 5);
+
+            // 湛藍沿岸海域
+            const seaGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+            seaGrad.addColorStop(0, '#0369a1');
+            seaGrad.addColorStop(0.45, '#0284c7');
+            seaGrad.addColorStop(1, '#0c4a6e');
+            ctx.fillStyle = seaGrad;
+            ctx.fillRect(0, horizonY, w, h - horizonY);
+
+            // 海面波光與湧浪
+            for (let row = 0; row < 20; row++) {
+                const prog = row / 20;
+                const wy = horizonY + 8 + prog * prog * (h - horizonY - 12);
+                ctx.strokeStyle = `rgba(224, 242, 254, ${0.16 + prog * 0.24})`;
+                ctx.lineWidth = 1.5 + prog * 1.5;
+                for (let c = 0; c < 6; c++) {
+                    const wx = ((c * 0.21 + prog * 0.31 + t * 0.03) % 1.05) * w - 40;
+                    const len = 45 + prog * 110;
+                    ctx.beginPath();
+                    ctx.moveTo(wx, wy);
+                    ctx.quadraticCurveTo(wx + len * 0.5, wy - 4 * Math.sin(t * 3 + row), wx + len, wy);
+                    ctx.stroke();
+                }
+            }
+
+            // 左側玄武岩岸礁與拍岸白浪
+            const rockGrad = ctx.createLinearGradient(0, horizonY - 30, w * 0.28, h);
+            rockGrad.addColorStop(0, '#334155');
+            rockGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = rockGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, horizonY - 24);
+            ctx.lineTo(w * 0.16, horizonY + 12);
+            ctx.lineTo(w * 0.27, h * 0.72);
+            ctx.lineTo(w * 0.20, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            ctx.fill();
+
+            // 拍岸浪花白沫
+            const surfPulse = 1 + Math.sin(t * 3.2) * 0.14;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+            ctx.beginPath();
+            ctx.ellipse(w * 0.22, h * 0.65, 36 * surfPulse, 14, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawOceanScene(ctx, w, h, t) {
+            const horizonY = h * 0.42;
+
+            // 遠洋亮麗藍天與層雲
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+            skyGrad.addColorStop(0, '#0284c7');
+            skyGrad.addColorStop(0.7, '#38bdf8');
+            skyGrad.addColorStop(1, '#e0f2fe');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, horizonY);
+
+            // 遠方積雲
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+            [[0.22, 0.24, 52], [0.27, 0.22, 64], [0.33, 0.25, 48], [0.74, 0.26, 56], [0.80, 0.24, 46]].forEach(([cx, cy, cr]) => {
+                ctx.beginPath();
+                ctx.arc(w * cx, h * cy, cr, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 深邃黑潮藍海
+            const oceanGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+            oceanGrad.addColorStop(0, '#0c4a6e');
+            oceanGrad.addColorStop(0.45, '#075985');
+            oceanGrad.addColorStop(1, '#082f49');
+            ctx.fillStyle = oceanGrad;
+            ctx.fillRect(0, horizonY, w, h - horizonY);
+
+            // 陽光波光閃爍
+            for (let row = 0; row < 22; row++) {
+                const prog = row / 22;
+                const wy = horizonY + 6 + prog * prog * (h - horizonY - 10);
+                ctx.strokeStyle = `rgba(186, 230, 253, ${0.18 + prog * 0.25})`;
+                ctx.lineWidth = 1.6 + prog * 1.8;
+                for (let c = 0; c < 7; c++) {
+                    const wx = ((c * 0.17 + prog * 0.29 + t * 0.035) % 1.05) * w - 40;
+                    const len = 48 + prog * 120;
+                    ctx.beginPath();
+                    ctx.moveTo(wx, wy);
+                    ctx.quadraticCurveTo(wx + len * 0.5, wy - 5 * Math.sin(t * 2.8 + row + c), wx + len, wy);
+                    ctx.stroke();
+                }
+            }
+
+            // 遠洋海釣船船首白色舷牆與不鏽鋼護欄（左側邊緣）
+            ctx.fillStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.moveTo(0, h * 0.74);
+            ctx.lineTo(w * 0.24, h * 0.86);
+            ctx.lineTo(w * 0.26, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, h * 0.68);
+            ctx.lineTo(w * 0.23, h * 0.81);
+            ctx.stroke();
+        }
+
+        /* ==================== 8. 第一人稱雙手握竿與旋轉捲線器（右下方一角） ==================== */
+        function evalQuadBezier(x0, y0, cx, cy, x1, y1, t) {
+            const mt = 1 - t;
+            return {
+                x: mt * mt * x0 + 2 * mt * t * cx + t * t * x1,
+                y: mt * mt * y0 + 2 * mt * t * cy + t * t * y1
+            };
+        }
+
+        function drawFirstPersonRig(ctx, w, h, rodYaw, rodBend, crankAngle, tipOut, stowProgress) {
+            if (stowProgress >= 0.99) return;
+            const isPortrait = h > w;
+            const scale = isPortrait ? 0.78 : 1.0;
+            const stowY = stowProgress * h * 0.65;
+            const stowX = stowProgress * w * 0.25;
+
+            const baseX = (isPortrait ? w * 0.89 : w * 0.85) + stowX;
+            const baseY = (isPortrait ? h * 0.91 : h * 0.98) + stowY;
+
+            const tipX = w * 0.57 + rodYaw * w * 0.22 + stowX;
+            const tipY = h * 0.51 + rodBend * h * 0.16 + stowY;
+            tipOut.x = tipX;
+            tipOut.y = tipY;
+
+            const ctrlX = (baseX + tipX) * 0.5 + rodYaw * w * 0.06;
+            const ctrlY = (baseY + tipY) * 0.5 - h * 0.04 - rodBend * h * 0.06;
+
+            ctx.save();
+
+            // 1. 黑黃漸細碳纖維海釣竿
+            const segs = 24;
+            for (let i = 0; i < segs; i++) {
+                const t1 = i / segs;
+                const t2 = (i + 1) / segs;
+                const p1 = evalQuadBezier(baseX, baseY, ctrlX, ctrlY, tipX, tipY, t1);
+                const p2 = evalQuadBezier(baseX, baseY, ctrlX, ctrlY, tipX, tipY, t2);
+                ctx.strokeStyle = t1 < 0.52 ? '#0f172a' : '#eab308';
+                ctx.lineWidth = Math.max(2.2, 13 * scale * (1 - t1 * 0.82));
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+
+            // 陶瓷導環
+            [0.35, 0.53, 0.69, 0.84, 0.98].forEach(gt => {
+                const gp = evalQuadBezier(baseX, baseY, ctrlX, ctrlY, tipX, tipY, gt);
+                ctx.fillStyle = '#334155';
+                ctx.beginPath();
+                ctx.arc(gp.x, gp.y - 2, 3.2 * scale * (1 - gt * 0.45), 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 2. 軟木輪座、紡車式捲線器與第一人稱雙手
+            const gripP1 = evalQuadBezier(baseX, baseY, ctrlX, ctrlY, tipX, tipY, 0.02);
+            const gripP2 = evalQuadBezier(baseX, baseY, ctrlX, ctrlY, tipX, tipY, 0.24);
+            const angle = Math.atan2(gripP2.y - gripP1.y, gripP2.x - gripP1.x);
+
+            ctx.save();
+            ctx.translate(gripP1.x, gripP1.y);
+            ctx.rotate(angle);
+            ctx.scale(scale, scale);
+
+            // 軟木握把
+            const corkGrad = ctx.createLinearGradient(0, -11, 0, 11);
+            corkGrad.addColorStop(0, '#b47b49');
+            corkGrad.addColorStop(0.5, '#d69e66');
+            corkGrad.addColorStop(1, '#7c4d25');
+            ctx.fillStyle = corkGrad;
+            ctx.beginPath();
+            ctx.roundRect(-22, -10, 125, 20, 8);
+            ctx.fill();
+
+            // 紡車式捲線器機身與螢光黃母線線杯
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.roundRect(36, 4, 42, 34, 8);
+            ctx.fill();
+
+            // 螢光黃尼龍線杯
+            ctx.fillStyle = '#bef264';
+            ctx.beginPath();
+            ctx.roundRect(42, 11, 30, 22, 4);
+            ctx.fill();
+            ctx.strokeStyle = '#65a30d';
+            ctx.lineWidth = 1.2;
+            for (let l = 14; l <= 30; l += 4) {
+                ctx.beginPath();
+                ctx.moveTo(42, l);
+                ctx.lineTo(72, l);
+                ctx.stroke();
+            }
+
+            // 旋轉搖臂與左手握持握丸
+            const hubX = 56;
+            const hubY = 22;
+            const armR = 24;
+            const knobX = hubX + Math.cos(crankAngle) * armR;
+            const knobY = hubY + Math.sin(crankAngle) * armR;
+
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(hubX, hubY);
+            ctx.lineTo(knobX, knobY);
+            ctx.stroke();
+
+            // 左前臂與左手（握住搖臂隨捲線畫圓）
+            const skinGrad = ctx.createLinearGradient(0, 0, 0, 50);
+            skinGrad.addColorStop(0, '#f3c19d');
+            skinGrad.addColorStop(1, '#d99b72');
+            ctx.fillStyle = skinGrad;
+
+            ctx.beginPath();
+            ctx.moveTo(knobX - 18, knobY + 86);
+            ctx.lineTo(knobX - 10, knobY + 12);
+            ctx.lineTo(knobX + 14, knobY + 12);
+            ctx.lineTo(knobX + 18, knobY + 86);
+            ctx.closePath();
+            ctx.fill();
+
+            // 左手拳頭與運動手錶帶
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(knobX - 12, knobY + 26, 26, 7);
+
+            ctx.fillStyle = skinGrad;
+            ctx.beginPath();
+            ctx.roundRect(knobX - 13, knobY - 12, 26, 26, 9);
+            ctx.fill();
+
+            // 黑色 T 型捲線握丸
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(knobX - 9, knobY - 15, 18, 9, 4);
+            ctx.fill();
+
+            // 右手握持軟木輪座與右前臂
+            ctx.fillStyle = skinGrad;
+            ctx.beginPath();
+            ctx.moveTo(48, 86);
+            ctx.lineTo(54, 6);
+            ctx.lineTo(80, 6);
+            ctx.lineTo(86, 86);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.roundRect(50, -14, 32, 26, 10);
+            ctx.fill();
+
+            ctx.restore();
+            ctx.restore();
+        }
+
+        /* ==================== 9. 浮標、釣線與畫面正中央控魚器垂直懸吊特寫 ==================== */
+        function drawBobberAndLine(ctx, w, h, tipPos, bobber, isBiting, t) {
+            const bx = bobber.x * w;
+            const by = bobber.y * h + (isBiting ? Math.sin(t * 28) * 6 : Math.sin(t * 3.2) * 2.5);
+
+            // 拋物線釣線（竿尖連至浮標）
+            ctx.save();
+            ctx.strokeStyle = 'rgba(248, 250, 252, 0.72)';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(tipPos.x, tipPos.y);
+            const midX = (tipPos.x + bx) * 0.5;
+            const midY = Math.max(tipPos.y, by) + 18;
+            ctx.quadraticCurveTo(midX, midY, bx, by - 8);
+            ctx.stroke();
+
+            // 水面擴散同心漣漪
+            const rippleR = ((t * 24) % 26) + 6;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - rippleR / 32) * 0.65})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(bx, by + 3, rippleR, rippleR * 0.36, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 亮橘白雙色浮標
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.arc(bx, by - 4, 6.5, Math.PI, 0);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(bx, by - 4, 6.5, 0, Math.PI);
+            ctx.fill();
+
+            // 浮標天線標尾
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.moveTo(bx, by - 10);
+            ctx.lineTo(bx, by - 22);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawGripperShowcase(ctx, w, h, species, t) {
+            const isMobile = w <= 760;
+            const cx = w * 0.50;
+            const clampY = isMobile ? h * 0.35 : h * 0.22;
+            const fishLen = isMobile ? Math.min(h * 0.32, 210) : Math.min(h * 0.50, 315);
+            const sway = Math.sin(t * 2.6) * 0.03;
+
+            ctx.save();
+
+            // 1. 釣手前臂與手掌（從上方伸入握持控魚器）
+            const skinGrad = ctx.createLinearGradient(cx - 20, 0, cx + 25, clampY);
+            skinGrad.addColorStop(0, '#d99b72');
+            skinGrad.addColorStop(1, '#f3c19d');
+            ctx.fillStyle = skinGrad;
+            ctx.beginPath();
+            ctx.moveTo(cx + 12, 0);
+            ctx.lineTo(cx + 38, 0);
+            ctx.lineTo(cx + 22, clampY - 56);
+            ctx.lineTo(cx - 10, clampY - 56);
+            ctx.closePath();
+            ctx.fill();
+
+            // 控魚器黑色防滑握柄
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(cx - 12, clampY - 76, 24, 52, 6);
+            ctx.fill();
+
+            // 手指環握握柄
+            ctx.fillStyle = '#eab38f';
+            for (let f = 0; f < 4; f++) {
+                ctx.beginPath();
+                ctx.roundRect(cx - 15, clampY - 68 + f * 10, 28, 8.5, 4);
+                ctx.fill();
+            }
+
+            // 不鏽鋼控魚器金屬夾頭
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, clampY - 24);
+            ctx.lineTo(cx, clampY - 12);
+            ctx.arc(cx, clampY - 3, 9, -Math.PI * 0.5, Math.PI * 1.15);
+            ctx.stroke();
+
+            // 2. 垂直懸吊於畫面正中央的寫實大魚
+            ctx.save();
+            ctx.translate(cx, clampY + fishLen * 0.44);
+            ctx.rotate(sway);
+            drawRealisticFish(ctx, species, fishLen, true);
+            ctx.restore();
+
+            // 3. 魚尾滴落晶瑩水珠動畫
+            const dropProg = (t * 1.4) % 1;
+            const dropY = clampY + fishLen * 0.92 + dropProg * 46;
+            ctx.fillStyle = `rgba(224, 242, 254, ${(1 - dropProg) * 0.85})`;
+            ctx.beginPath();
+            ctx.arc(cx + Math.sin(sway) * 20, dropY, 3.2 * (1 - dropProg * 0.4), 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        /* ==================== 10. 遊戲流程與作釣狀態控制 ==================== */
+        function setToast(text) {
+            const el = document.getElementById('status-toast');
+            if (el) el.textContent = text;
+        }
+
+        function syncControlsUI() {
+            const biteEl = document.getElementById('bite-banner');
+            const fightEl = document.getElementById('fight-hud');
+            const catchEl = document.getElementById('catch-card');
+            const powerBar = document.getElementById('cast-power-bar');
+            const mainBtn = document.getElementById('btn-main-action');
+            const leftBtn = document.getElementById('btn-steer-left');
+            const rightBtn = document.getElementById('btn-steer-right');
+
+            biteEl.classList.add('hidden');
+            fightEl.classList.add('hidden');
+            catchEl.classList.add('hidden');
+            powerBar.classList.add('hidden');
+            leftBtn.classList.add('hidden');
+            rightBtn.classList.add('hidden');
+            mainBtn.className = '';
+
+            if (game.phase === 'IDLE') {
+                mainBtn.textContent = '拋竿垂釣（按住蓄力）';
+                setToast('按住下方「拋竿垂釣」或點擊水面蓄力拋竿');
+            } else if (game.phase === 'CHARGING') {
+                powerBar.classList.remove('hidden');
+                mainBtn.classList.add('state-charging');
+                mainBtn.textContent = '蓄力中…放開拋出';
+                setToast('蓄力中！放開即可將浮標拋入水中');
+            } else if (game.phase === 'CASTING') {
+                mainBtn.classList.add('state-waiting');
+                mainBtn.textContent = '拋投中…';
+            } else if (game.phase === 'WAITING') {
+                mainBtn.classList.add('state-waiting');
+                mainBtn.textContent = '收回釣線';
+                setToast('浮標隨波漂浮中，靜待魚群咬鉤…');
+            } else if (game.phase === 'BITING') {
+                biteEl.classList.remove('hidden');
+                mainBtn.classList.add('state-biting');
+                mainBtn.textContent = '魚上鉤！立即揚竿';
+                setToast('浮標下沉！快點擊按鈕或水面揚竿！');
+            } else if (game.phase === 'FIGHTING') {
+                fightEl.classList.remove('hidden');
+                leftBtn.classList.remove('hidden');
+                rightBtn.classList.remove('hidden');
+                mainBtn.classList.add('state-fighting');
+                mainBtn.textContent = '按住捲線！（張力過高請放開）';
+                setToast('按住捲線縮短距離，張力紅區時請暫時放開');
+            } else if (game.phase === 'SHOWCASE') {
+                catchEl.classList.remove('hidden');
+                mainBtn.classList.add('state-showcase');
+                mainBtn.textContent = '收下漁獲・繼續釣魚';
+                setToast('成功起魚！可點擊圖鑑查看已收錄魚種');
+            }
+        }
+
+        function resetToIdle() {
+            game.phase = 'IDLE';
+            game.chargePower = 0;
+            game.rodBend = 0;
+            game.targetRodYaw = 0;
+            game.fight.reeling = false;
+            game.fight.tension = 18;
+            updateTensionUI(18);
+            syncControlsUI();
+        }
+
+        function beginCharge(tapX, tapY) {
+            if (game.phase !== 'IDLE') return;
+            game.phase = 'CHARGING';
+            game.chargePower = 18;
+            game.chargeDir = 1;
+            const { w, h } = getViewSize();
+            if (typeof tapX === 'number' && typeof tapY === 'number') {
+                game.bobber.targetX = Math.max(0.18, Math.min(0.82, tapX / w));
+                game.bobber.targetY = Math.max(0.54, Math.min(0.76, tapY / h));
+            } else {
+                game.bobber.targetX = 0.42 + (Math.random() - 0.5) * 0.18;
+                game.bobber.targetY = 0.58 + Math.random() * 0.12;
+            }
+            syncControlsUI();
+        }
+
+        function releaseCast() {
+            if (game.phase !== 'CHARGING') return;
+            game.phase = 'CASTING';
+            game.castProgress = 0;
+            const powerRatio = Math.max(0.25, game.chargePower / 100);
+            game.bobber.targetY = 0.72 - powerRatio * 0.17;
+            SoundFX.playCast();
+            syncControlsUI();
+        }
+
+        function triggerBite() {
+            game.phase = 'BITING';
+            game.biteTimer = 3.2;
+            SoundFX.playBite();
+            syncControlsUI();
+        }
+
+        function hookAndStartFight() {
+            if (game.phase !== 'BITING') return;
+            const pool = FISH_SPECIES.filter(f => f.loc === game.location);
+            const species = pool[Math.floor(Math.random() * pool.length)];
+
+            const sizeFactor = Math.random();
+            const lengthCm = +(species.minLen + sizeFactor * (species.maxLen - species.minLen)).toFixed(1);
+            const weightKg = +(species.minWt + Math.pow(sizeFactor, 1.35) * (species.maxWt - species.minWt)).toFixed(2);
+            const startDist = +(18 + sizeFactor * 14).toFixed(1);
+
+            game.fight = {
+                species,
+                lengthCm,
+                weightKg,
+                dist: startDist,
+                maxDist: startDist,
+                tension: 34,
+                stamina: species.stamina,
+                maxStamina: species.stamina,
+                fishRunTimer: 1.2,
+                fishRunDir: Math.random() < 0.5 ? -1 : 1,
+                reeling: false
+            };
+            game.phase = 'FIGHTING';
+            game.rodBend = 0.65;
+            SoundFX.playSplash();
+            syncControlsUI();
+        }
+
+        function completeCatch() {
+            const { species, lengthCm, weightKg } = game.fight;
+            game.phase = 'SHOWCASE';
+            game.fight.reeling = false;
+            SoundFX.playCatch();
+
+            // 記錄於圖鑑
+            const prev = game.records[species.id];
+            if (!prev) {
+                game.records[species.id] = { count: 1, maxWt: weightKg, maxLen: lengthCm };
+            } else {
+                prev.count += 1;
+                prev.maxWt = Math.max(prev.maxWt, weightKg);
+                prev.maxLen = Math.max(prev.maxLen, lengthCm);
+            }
+            updateDexBadge();
+            saveCatchToCloud(species, lengthCm, weightKg);
+
+            // 更新特寫資料卡
+            const rarityEl = document.getElementById('catch-rarity');
+            rarityEl.textContent = species.rarity;
+            rarityEl.style.background = `${species.rarityColor}28`;
+            rarityEl.style.color = species.rarityColor;
+            rarityEl.style.border = `1px solid ${species.rarityColor}88`;
+
+            document.getElementById('catch-name').textContent = species.name;
+            document.getElementById('catch-sub').textContent = `${species.sci}・俗稱：${species.alias}`;
+            document.getElementById('catch-length').textContent = `${lengthCm} cm`;
+            document.getElementById('catch-weight').textContent = `${weightKg} kg`;
+            document.getElementById('catch-desc').textContent = species.desc;
+
+            updateTensionUI(14);
+            syncControlsUI();
+        }
+
+        /* ==================== 11. 魚類圖鑑視窗渲染 ==================== */
+        function updateDexBadge() {
+            const caughtCount = Object.keys(game.records).length;
+            document.getElementById('dex-count-badge').textContent = `${caughtCount}/${FISH_SPECIES.length}`;
+            const ownerText = studentSession.role === 'student' && studentSession.fullId
+                ? `（學號 ${studentSession.fullId} 雲端存檔）`
+                : '（訪客暫存模式）';
+            document.getElementById('dex-progress-text').textContent = `已收錄 ${caughtCount} / ${FISH_SPECIES.length} 種台灣溪海魚類 ${ownerText}`;
+        }
+
+        function renderDexModal() {
+            const grid = document.getElementById('dex-grid');
+            grid.innerHTML = '';
+            const locMap = { stream: '山谷溪潭', shore: '岩岸磯釣', ocean: '遠洋船釣' };
+
+            FISH_SPECIES.forEach(sp => {
+                const rec = game.records[sp.id];
+                const card = document.createElement('div');
+                card.className = `dex-item ${rec ? '' : 'locked'}`;
+
+                const thumb = document.createElement('canvas');
+                thumb.width = 220;
+                thumb.height = 96;
+                thumb.className = 'dex-thumb';
+                const tctx = thumb.getContext('2d');
+                tctx.save();
+                tctx.translate(110, 48);
+                if (!rec) {
+                    tctx.filter = 'brightness(0.18) saturate(0)';
+                }
+                drawRealisticFish(tctx, sp, 142, false);
+                tctx.restore();
+
+                const title = document.createElement('div');
+                title.style.fontWeight = '900';
+                title.style.fontSize = '15px';
+                title.style.color = rec ? '#f8fafc' : '#94a3b8';
+                title.textContent = rec ? `${sp.name}（${sp.alias.split(' / ')[0]}）` : `？？？・${locMap[sp.loc]}`;
+
+                const meta = document.createElement('div');
+                meta.style.fontSize = '11px';
+                meta.style.color = rec ? '#38bdf8' : '#64748b';
+                meta.style.marginTop = '3px';
+                meta.textContent = rec
+                    ? `最高紀錄：${rec.maxLen} cm / ${rec.maxWt} kg（捕獲 ${rec.count} 尾）`
+                    : `出沒釣場：${locMap[sp.loc]}`;
+
+                card.appendChild(thumb);
+                card.appendChild(title);
+                card.appendChild(meta);
+                grid.appendChild(card);
+            });
+        }
+
+        /* ==================== 12. 每幀物理模擬與渲染主迴圈 ==================== */
+        let lastFrameTime = performance.now();
+        const rodTipPos = { x: 640, y: 360 };
+
+        function updateSimulation(dt) {
+            game.time += dt;
+            game.rodYaw += (game.targetRodYaw - game.rodYaw) * Math.min(1, dt * 8);
+
+            // 起魚特寫時流暢向下收折釣竿
+            const targetStow = game.phase === 'SHOWCASE' ? 1 : 0;
+            game.stowProgress += (targetStow - game.stowProgress) * Math.min(1, dt * 6);
+
+            if (game.phase === 'CHARGING') {
+                game.chargePower += game.chargeDir * dt * 115;
+                if (game.chargePower >= 100) {
+                    game.chargePower = 100;
+                    game.chargeDir = -1;
+                } else if (game.chargePower <= 15) {
+                    game.chargePower = 15;
+                    game.chargeDir = 1;
+                }
+                document.getElementById('cast-power-fill').style.width = `${game.chargePower.toFixed(1)}%`;
+                game.rodBend = -0.25 - (game.chargePower / 100) * 0.35;
+            } else if (game.phase === 'CASTING') {
+                game.castProgress += dt * 2.4;
+                game.rodBend = Math.sin(Math.min(1, game.castProgress) * Math.PI) * 0.45;
+                if (game.castProgress >= 1) {
+                    game.phase = 'WAITING';
+                    game.bobber.x = game.bobber.targetX;
+                    game.bobber.y = game.bobber.targetY;
+                    game.waitTimer = 1.6 + Math.random() * 2.4;
+                    game.rodBend = 0.08;
+                    SoundFX.playSplash();
+                    syncControlsUI();
+                }
+            } else if (game.phase === 'WAITING') {
+                game.waitTimer -= dt;
+                game.rodBend = 0.08 + Math.sin(game.time * 2.5) * 0.02;
+                if (game.waitTimer <= 0) {
+                    triggerBite();
+                }
+            } else if (game.phase === 'BITING') {
+                game.biteTimer -= dt;
+                game.rodBend = 0.28 + Math.sin(game.time * 24) * 0.08;
+                if (game.biteTimer <= 0) {
+                    setToast('魚兒脫鉤游走了，再試一次吧！');
+                    resetToIdle();
+                }
+            } else if (game.phase === 'FIGHTING') {
+                const f = game.fight;
+                f.fishRunTimer -= dt;
+                if (f.fishRunTimer <= 0) {
+                    f.fishRunTimer = 1.0 + Math.random() * 1.4;
+                    f.fishRunDir = Math.random() < 0.5 ? -1 : 1;
+                }
+
+                // 魚群左右衝刺與拉竿方向對抗
+                const fishPullX = f.fishRunDir * 0.45;
+                const alignBonus = Math.abs(game.rodYaw - (-fishPullX)) < 0.45 ? 1.25 : 0.85;
+
+                if (f.reeling) {
+                    game.crankAngle += dt * 13;
+                    const tensionRise = (22 * f.species.power - (alignBonus - 1) * 8) * dt;
+                    f.tension += tensionRise;
+                    const reelSpeed = (4.2 / Math.sqrt(f.species.power)) * alignBonus;
+                    f.dist = Math.max(0, f.dist - reelSpeed * dt);
+                    f.stamina = Math.max(0, f.stamina - 14 * alignBonus * dt);
+                    SoundFX.playReelClick(false);
+                } else {
+                    // 放開捲線卸力散熱
+                    f.tension -= 26 * dt;
+                    if (f.tension > 58) {
+                        f.dist = Math.min(f.maxDist + 4, f.dist + 1.3 * f.species.power * dt);
+                        SoundFX.playReelClick(true);
+                    }
+                }
+
+                // 魚群突然暴衝張力波動
+                f.tension += Math.sin(game.time * 6.5) * 6 * dt;
+                f.tension = Math.max(12, Math.min(100, f.tension));
+
+                // 釣竿隨張力劇烈彎曲
+                game.rodBend = 0.35 + (f.tension / 100) * 0.72 + Math.sin(game.time * 18) * 0.03;
+
+                // 浮標隨魚群位置靠近岸邊
+                const distRatio = f.dist / f.maxDist;
+                game.bobber.x = 0.50 + fishPullX * 0.28 * distRatio;
+                game.bobber.y = 0.76 - distRatio * 0.18;
+
+                // 更新 HUD
+                document.getElementById('fight-dist-text').textContent = `${f.dist.toFixed(1)} m`;
+                const stamPct = Math.max(0, (f.stamina / f.maxStamina) * 100);
+                document.getElementById('stamina-fill').style.width = `${stamPct.toFixed(1)}%`;
+
+                const warnEl = document.getElementById('fight-warn-text');
+                if (f.tension >= 78) {
+                    warnEl.textContent = '張力過高！快放開卸力！';
+                    warnEl.style.color = '#ef4444';
+                } else {
+                    warnEl.textContent = f.fishRunDir < 0 ? '魚往左衝！按「向右拉竿」' : '魚往右衝！按「向左拉竿」';
+                    warnEl.style.color = '#38bdf8';
+                }
+
+                updateTensionUI(f.tension);
+
+                if (f.tension >= 99.5) {
+                    setToast('釣線張力超過負荷斷線了！下次注意適時放開卸力');
+                    resetToIdle();
+                } else if (f.dist <= 0.4) {
+                    completeCatch();
+                }
+            }
+        }
+
+        function renderFrame(now) {
+            const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
+            lastFrameTime = now;
+
+            updateSimulation(dt);
+
+            const { w, h } = getViewSize();
+            ctx.clearRect(0, 0, w, h);
+
+            // 1. 繪製當前寫實釣場
+            if (game.location === 'stream') drawStreamScene(ctx, w, h, game.time);
+            else if (game.location === 'shore') drawShoreScene(ctx, w, h, game.time);
+            else drawOceanScene(ctx, w, h, game.time);
+
+            // 2. 繪製第一人稱雙手握竿與旋轉捲線器
+            drawFirstPersonRig(ctx, w, h, game.rodYaw, game.rodBend, game.crankAngle, rodTipPos, game.stowProgress);
+
+            // 3. 繪製拋投中或水面漂浮的浮標與釣線
+            if (game.phase === 'CASTING') {
+                const p = game.castProgress;
+                const arcBobber = {
+                    x: (rodTipPos.x / w) * (1 - p) + game.bobber.targetX * p,
+                    y: (rodTipPos.y / h) * (1 - p) + game.bobber.targetY * p - Math.sin(p * Math.PI) * 0.22
+                };
+                drawBobberAndLine(ctx, w, h, rodTipPos, arcBobber, false, game.time);
+            } else if (game.phase === 'WAITING' || game.phase === 'BITING' || game.phase === 'FIGHTING') {
+                drawBobberAndLine(ctx, w, h, rodTipPos, game.bobber, game.phase === 'BITING', game.time);
+            }
+
+            // 4. 起魚特寫：畫面正中央人手握持不鏽鋼控魚器垂直懸吊大魚
+            if (game.phase === 'SHOWCASE' && game.fight.species) {
+                drawGripperShowcase(ctx, w, h, game.fight.species, game.time);
+            }
+
+            requestAnimationFrame(renderFrame);
+        }
+
+        /* ==================== 13. 互動事件綁定（手機全觸控＋電腦滑鼠鍵盤） ==================== */
+        // 釣場切換
+        document.querySelectorAll('.loc-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetLoc = btn.dataset.loc;
+                if (!targetLoc) return;
+                document.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                game.location = targetLoc;
+                resetToIdle();
+            });
+        });
+
+        // 圖鑑開啟與關閉
+        document.getElementById('btn-dex').addEventListener('click', () => {
+            renderDexModal();
+            document.getElementById('dex-modal').classList.remove('hidden');
+        });
+        document.getElementById('btn-close-dex').addEventListener('click', () => {
+            document.getElementById('dex-modal').classList.add('hidden');
+        });
+        document.getElementById('dex-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'dex-modal') {
+                document.getElementById('dex-modal').classList.add('hidden');
+            }
+        });
+
+        // 學號綁定彈窗事件
+        document.getElementById('btn-student-bind').addEventListener('click', () => {
+            document.getElementById('bind-sid-input').value = studentSession.fullId || '';
+            document.getElementById('bind-err-text').classList.add('hidden');
+            document.getElementById('bind-modal').classList.remove('hidden');
+        });
+        document.getElementById('btn-close-bind').addEventListener('click', () => {
+            document.getElementById('bind-modal').classList.add('hidden');
+        });
+        document.getElementById('btn-unbind-visitor').addEventListener('click', () => {
+            studentSession.role = 'visitor';
+            studentSession.fullId = '';
+            studentSession.last3 = '';
+            studentSession.displayName = '';
+            try { sessionStorage.removeItem(ISLAND_SESSION_KEY); } catch (e) {}
+            updateStudentBindUI();
+            updateDexBadge();
+            document.getElementById('bind-modal').classList.add('hidden');
+        });
+        document.getElementById('btn-confirm-bind').addEventListener('click', () => {
+            const raw = (document.getElementById('bind-sid-input').value || '').trim().toUpperCase();
+            if (!/^[A-Za-z0-9]{7,10}$/.test(raw)) {
+                document.getElementById('bind-err-text').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('bind-err-text').classList.add('hidden');
+            studentSession.role = 'student';
+            studentSession.fullId = raw;
+            studentSession.last3 = raw.slice(-3);
+            studentSession.grade = '在校生';
+            try {
+                sessionStorage.setItem(ISLAND_SESSION_KEY, JSON.stringify({
+                    role: 'student',
+                    fullId: raw,
+                    last3: studentSession.last3,
+                    grade: studentSession.grade,
+                    displayName: studentSession.displayName
+                }));
+            } catch (e) {}
+            document.getElementById('bind-modal').classList.add('hidden');
+            updateDexBadge();
+            loadCloudFishingDex();
+        });
+
+        // 主作釣操作按鈕
+        const mainBtn = document.getElementById('btn-main-action');
+        function handleMainPressDown() {
+            if (game.phase === 'IDLE') beginCharge();
+            else if (game.phase === 'WAITING') resetToIdle();
+            else if (game.phase === 'BITING') hookAndStartFight();
+            else if (game.phase === 'FIGHTING') game.fight.reeling = true;
+            else if (game.phase === 'SHOWCASE') resetToIdle();
+        }
+        function handleMainPressUp() {
+            if (game.phase === 'CHARGING') releaseCast();
+            else if (game.phase === 'FIGHTING') game.fight.reeling = false;
+        }
+
+        mainBtn.addEventListener('mousedown', (e) => { e.preventDefault(); handleMainPressDown(); });
+        mainBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleMainPressDown(); }, { passive: false });
+        window.addEventListener('mouseup', handleMainPressUp);
+        window.addEventListener('touchend', handleMainPressUp);
+        window.addEventListener('touchcancel', handleMainPressUp);
+
+        // 左右控竿觸控鈕
+        const leftSteerBtn = document.getElementById('btn-steer-left');
+        const rightSteerBtn = document.getElementById('btn-steer-right');
+
+        function setSteerDirection(dir) {
+            game.targetRodYaw = dir * 0.68;
+            leftSteerBtn.classList.toggle('active', dir < 0);
+            rightSteerBtn.classList.toggle('active', dir > 0);
+        }
+
+        leftSteerBtn.addEventListener('mousedown', (e) => { e.preventDefault(); setSteerDirection(-1); });
+        leftSteerBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setSteerDirection(-1); }, { passive: false });
+        rightSteerBtn.addEventListener('mousedown', (e) => { e.preventDefault(); setSteerDirection(1); });
+        rightSteerBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setSteerDirection(1); }, { passive: false });
+        window.addEventListener('mouseup', () => setSteerDirection(0));
+        window.addEventListener('touchend', () => setSteerDirection(0));
+
+        // 畫布直接觸控與滑鼠互動（按住水域蓄力 / 揚竿 / 按住捲線並左右滑動控竿）
+        canvas.addEventListener('mousedown', (e) => {
+            const { w, h } = getViewSize();
+            const xr = (e.clientX / w) * 2 - 1;
+            const yr = e.clientY / h;
+            if (game.phase === 'IDLE' && yr > 0.35) {
+                beginCharge(e.clientX, e.clientY);
+            } else if (game.phase === 'BITING') {
+                hookAndStartFight();
+            } else if (game.phase === 'FIGHTING') {
+                game.fight.reeling = true;
+                game.targetRodYaw = xr * 0.68;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (game.phase === 'FIGHTING') {
+                const { w } = getViewSize();
+                const xr = (e.clientX / w) * 2 - 1;
+                game.targetRodYaw = xr * 0.68;
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (!e.touches.length) return;
+            const { w, h } = getViewSize();
+            const t = e.touches[0];
+            const xr = (t.clientX / w) * 2 - 1;
+            const yr = t.clientY / h;
+            if (game.phase === 'IDLE' && yr > 0.35) {
+                beginCharge(t.clientX, t.clientY);
+            } else if (game.phase === 'BITING') {
+                hookAndStartFight();
+            } else if (game.phase === 'FIGHTING') {
+                game.fight.reeling = true;
+                game.targetRodYaw = xr * 0.68;
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (game.phase === 'FIGHTING' && e.touches.length) {
+                const { w } = getViewSize();
+                const t = e.touches[0];
+                const xr = (t.clientX / w) * 2 - 1;
+                game.targetRodYaw = xr * 0.68;
+            }
+        }, { passive: true });
+
+        // 鍵盤操作支援（空白鍵拋竿/揚竿/捲線，A/D 或左右方向鍵控竿）
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!e.repeat) handleMainPressDown();
+            } else if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+                setSteerDirection(-1);
+            } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+                setSteerDirection(1);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                handleMainPressUp();
+            } else if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'ArrowRight' || e.code === 'KeyD') {
+                setSteerDirection(0);
+            }
+        });
+
+        // 啟動遊戲首幀並自動同步學號雲端圖鑑
+        readMainIslandSession();
+        updateStudentBindUI();
+        updateDexBadge();
+        loadCloudFishingDex();
+        updateTensionUI(18);
+        syncControlsUI();
+        requestAnimationFrame(renderFrame);
+    </script>
+</body>
+</html>
